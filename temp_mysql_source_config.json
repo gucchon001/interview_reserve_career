@@ -1,0 +1,16 @@
+{
+  "binaryLogPosition": {},
+  "includeObjects": {
+    "mysqlDatabases": [
+      {
+        "database": "tomonokai_prod_db",
+        "mysqlTables": [
+          {
+            "table": "am_admins"
+          }
+        ]
+      }
+    ]
+  }
+}
+

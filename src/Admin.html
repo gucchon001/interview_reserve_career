@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>面談官ポータル | 管理画面3</title>
+  
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Vue 3 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <!-- FullCalendar -->
+  <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans JP', sans-serif;
+      background-color: #F9FAFB;
+    }
+    /* ロゴスタイル */
+    .logo-container {
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .logo-container svg {
+      height: 100%;
+      width: auto;
+    }
+    /* FullCalendar Customization */
+    .fc-event {
+      cursor: pointer;
+      border: none;
+      padding: 2px 4px;
+      font-size: 0.85rem;
+      border-radius: 4px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .fc-toolbar-title {
+      font-size: 1.25rem !important;
+      font-weight: 700 !important;
+      color: #1F2937;
+    }
+    .fc-button-primary {
+      background-color: #fff !important;
+      border-color: #E5E7EB !important;
+      color: #374151 !important;
+      font-weight: 500 !important;
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    }
+    .fc-button-primary:hover {
+      background-color: #F9FAFB !important;
+    }
+    .fc-button-active {
+      background-color: #F3F4F6 !important;
+      border-color: #D1D5DB !important;
+    }
+    .fc-day-today {
+      background-color: #EFF6FF !important;
+    }
+    .fade-enter-active,
+    .fade-leave-active {
+      transition: opacity 0.2s ease;
+    }
+    .fade-enter-from,
+    .fade-leave-to {
+      opacity: 0;
+    }
+    aside::-webkit-scrollbar {
+      width: 6px;
+    }
+    aside::-webkit-scrollbar-track {
+      background: #f1f1f1;
+    }
+    aside::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+    aside::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" class="h-screen flex flex-col overflow-hidden">
+
+    <!-- ヘッダー -->
+    <header class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 z-20 shadow-sm flex-shrink-0">
+      <div class="flex items-center gap-4">
+        <!-- ロゴとサイト名 -->
+        <div class="flex items-center gap-3">
+          <div class="logo-container" style="height: 48px;">
+            <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 800" style="height: 100%; width: auto;">
+            <path d="M0 0 C3.00390625 2.53125 3.00390625 2.53125 4.89135742 5.00317383 C7.47154794 8.03841154 9.38362495 9.82620547 13.00390625 11.53125 C19.69904758 11.56138567 26.25836224 8.49487063 32.44140625 6.21875 C34.32377991 5.57337235 36.20834857 4.93436422 38.0949707 4.30151367 C41.92264634 3.01465068 45.74181 1.70626248 49.55664062 0.38183594 C57.18959382 -2.24201264 64.92190844 -4.47757131 72.69140625 -6.65625 C74.08578591 -7.05155564 75.48015439 -7.44690074 76.87451172 -7.84228516 C88.39959829 -11.09190675 99.97667923 -14.14659061 111.56640625 -17.15625 C112.43244476 -17.38315521 113.29848328 -17.61006042 114.19076538 -17.84384155 C116.62786841 -18.48044507 119.06728845 -19.10712714 121.5078125 -19.73046875 C122.2393454 -19.92257935 122.9708783 -20.11468994 123.72457886 -20.31262207 C128.77410766 -21.58364929 128.77410766 -21.58364929 131.00390625 -20.46875 C124.98954846 -18.38563381 118.95663586 -16.5901208 112.79296875 -15.0078125 C110.99312139 -14.53839855 109.19340373 -14.06848712 107.39379883 -13.59814453 C106.45468658 -13.35340393 105.51557434 -13.10866333 104.54800415 -12.85650635 C87.5412268 -8.41265834 70.63565678 -3.70254627 53.81640625 1.40625 C52.50739349 1.80272736 52.50739349 1.80272736 51.17193604 2.20721436 C39.38213139 5.78633697 27.67421553 9.58048767 16.00390625 13.53125 C18.4385606 17.22141105 20.90728012 20.71191111 23.75390625 24.09375 C57.59614795 66.34980869 64.9213067 124.91924109 59.41064453 177.21240234 C54.91690824 213.87978 42.79942615 250.12833303 20.00390625 279.53125 C19.27558594 280.47097656 18.54726563 281.41070312 17.796875 282.37890625 C-12.99714507 320.94078724 -54.39407358 344.97542042 -102.99609375 353.53125 C-104.78466797 353.86962891 -104.78466797 353.86962891 -106.609375 354.21484375 C-147.98037418 360.77090373 -196.06337673 353.633035 -230.77246094 329.28515625 C-254.8809663 311.7469667 -270.47024002 288.98235071 -275.5234375 259.44921875 C-279.62870348 223.73902833 -263.98952008 189.83034148 -242.55859375 162.28125 C-237.05685096 155.37345184 -231.12223243 148.88633188 -224.99609375 142.53125 C-224.46193848 141.97518066 -223.9277832 141.41911133 -223.37744141 140.84619141 C-217.13261574 134.37866765 -210.77912784 128.28266187 -203.71875 122.6953125 C-200.8754327 120.43534437 -198.12863339 118.0823554 -195.37109375 115.71875 C-176.27464861 99.81322757 -154.65323591 86.61963188 -132.99609375 74.53125 C-132.1050293 74.03157715 -131.21396484 73.5319043 -130.29589844 73.01708984 C-97.84363193 54.89461545 -63.97863174 39.86923764 -29.30859375 26.53125 C-28.4784375 26.2110791 -27.64828125 25.8909082 -26.79296875 25.56103516 C-23.72868738 24.41192964 -21.29650269 23.53125 -17.99609375 23.53125 C-40.72075679 -4.0844829 -71.92894526 -13.8645686 -105.99609375 -19.46875 C-105.99609375 -20.12875 -105.99609375 -20.78875 -105.99609375 -21.46875 C-68.13768432 -28.50438361 -31.11605268 -23.94273367 0 0 Z M-24.53125 26.98828125 C-25.19289658 27.24679871 -25.85454315 27.50531616 -26.53623962 27.77166748 C-28.71223129 28.62434977 -30.8856692 29.48328349 -33.05859375 30.34375 C-33.80294678 30.63780731 -34.5472998 30.93186462 -35.31420898 31.23483276 C-72.97982286 46.13899848 -110.5158884 63.16818211 -144.99609375 84.53125 C-145.85009766 85.05686523 -146.70410156 85.58248047 -147.58398438 86.12402344 C-159.19732442 93.29745018 -170.43883011 100.7545309 -181.20849609 109.14501953 C-182.96568294 110.50766729 -184.73740015 111.84855572 -186.515625 113.18359375 C-192.50578845 117.69686021 -198.23768203 122.38821315 -203.75390625 127.47265625 C-205.69354424 129.25347371 -207.67127798 130.95916824 -209.68359375 132.65625 C-220.01376032 141.68464761 -229.69077842 151.61185161 -237.99609375 162.53125 C-238.42341797 163.08216309 -238.85074219 163.63307617 -239.29101562 164.20068359 C-259.13410146 189.84892752 -275.36390165 222.72025458 -271.55078125 256.0390625 C-268.30962919 279.4370697 -257.62246657 301.04123479 -238.80859375 315.84375 C-214.53103498 334.03735546 -183.35434927 339.57458079 -153.70800781 335.75732422 C-137.05637845 333.25575265 -121.10013385 327.89774073 -105.99609375 320.53125 C-105.06337646 320.07927246 -105.06337646 320.07927246 -104.11181641 319.61816406 C-88.56530817 311.97631736 -74.96114149 301.94338116 -61.99609375 290.53125 C-60.97902344 289.68046875 -60.97902344 289.68046875 -59.94140625 288.8125 C-48.92204271 279.54299247 -38.73223747 268.96129169 -29.99609375 257.53125 C-29.53106445 256.93199707 -29.06603516 256.33274414 -28.58691406 255.71533203 C6.17570781 210.87221962 19.52412718 154.44436532 12.87890625 98.15625 C9.44579188 72.69451392 1.52175863 44.18363062 -15.99609375 24.53125 C-19.11535114 24.53125 -21.63600675 25.8553767 -24.53125 26.98828125 Z " fill="#3472D1" transform="translate(579.99609375,175.46875)"/>
+            <path d="M0 0 C3.63 0 7.26 0 11 0 C11 2.97 11 5.94 11 9 C15.62 9 20.24 9 25 9 C25.33 17.91 25.66 26.82 26 36 C26.33 35.01 26.66 34.02 27 33 C29 33 29 33 31.625 35.5625 C33.66863844 38.13216372 34.01138573 39.07970013 34.5 42.5 C33.9591506 46.28594578 33.02905575 48.76854085 31 52 C28 54 28 54 24.5625 53.9375 C20.21500372 52.79342203 19.27731856 51.82264186 17 48 C15.86526305 45.35880193 14.92460232 42.72757684 14 40 C13.01 41.32 12.02 42.64 11 44 C9.35 43.34 7.7 42.68 6 42 C5.00982072 43.22031269 4.03330683 44.45172002 3.0625 45.6875 C2.24458984 46.71423828 2.24458984 46.71423828 1.41015625 47.76171875 C-0.36653441 50.28668651 -0.36653441 50.28668651 -1 55 C7.25 55 15.5 55 24 55 C24 58.3 24 61.6 24 65 C15.75 65 7.5 65 -1 65 C-1 65.66 -1 66.32 -1 67 C9.56 67 20.12 67 31 67 C31 70.63 31 74.26 31 78 C5.59 78 -19.82 78 -46 78 C-46 74.37 -46 70.74 -46 67 C-35.44 67 -24.88 67 -14 67 C-14 66.34 -14 65.68 -14 65 C-21.92 65 -29.84 65 -38 65 C-38.48828125 61.484375 -38.9765625 57.96875 -39.46484375 54.453125 C-39.96399104 50.88592488 -39.96399104 50.88592488 -41 47 C-38.03 47 -35.06 47 -32 47 C-32 46.34 -32 45.68 -32 45 C-36.62 45 -41.24 45 -46 45 C-46 42.36 -46 39.72 -46 37 C-39.07 36.01 -39.07 36.01 -32 35 C-35.3 34.67 -38.6 34.34 -42 34 C-42 31.69 -42 29.38 -42 27 C-42.66 27 -43.32 27 -44 27 C-44 22.38 -44 17.76 -44 13 C-32.78 13 -21.56 13 -10 13 C-10 17.62 -10 22.24 -10 27 C-11.32 27.33 -12.64 27.66 -14 28 C-13.01 28.99 -12.02 29.98 -11 31 C-11.66 32.32 -12.32 33.64 -13 35 C-11.7934375 35.185625 -11.7934375 35.185625 -10.5625 35.375 C-9.716875 35.58125 -8.87125 35.7875 -8 36 C-7.67 36.66 -7.34 37.32 -7 38 C-6.34 36.68 -5.68 35.36 -5 34 C-6.65 33.01 -8.3 32.02 -10 31 C-9.49701212 26.59885603 -7.91227269 24.28804981 -5 21 C-3.68 21.33 -2.36 21.66 -1 22 C-1 21.34 -1 20.68 -1 20 C-2.98 20 -4.96 20 -7 20 C-7 16.37 -7 12.74 -7 9 C-4.69 9 -2.38 9 0 9 C0 6.03 0 3.06 0 0 Z M-33 19 C-33 19.33 -33 19.66 -33 20 C-29.04 20 -25.08 20 -21 20 C-21 19.67 -21 19.34 -21 19 C-24.96 19 -28.92 19 -33 19 Z M11 20 C10.67 22.97 10.34 25.94 10 29 C11.98 29.99 11.98 29.99 14 31 C14 27.37 14 23.74 14 20 C13.01 20 12.02 20 11 20 Z M-21 44 C-21.33 46.64 -21.66 49.28 -22 52 C-23.98 52.66 -25.96 53.32 -28 54 C-28 54.33 -28 54.66 -28 55 C-23.38 55 -18.76 55 -14 55 C-14 53.35 -14 51.7 -14 50 C-12.35 50 -10.7 50 -9 50 C-10.43319686 46.84730711 -10.43319686 46.84730711 -13 44 C-15.84663895 43.44588326 -18.06977319 43.70697732 -21 44 Z " fill="#4D4D4D" transform="translate(146,569)"/>
+            <path d="M0 0 C4.95 0 9.9 0 15 0 C15 3.96 15 7.92 15 12 C22.59 12 30.18 12 38 12 C38 16.29 38 20.58 38 25 C30.74 25 23.48 25 16 25 C16.495 26.485 16.495 26.485 17 28 C17 30.64 17 33.28 17 36 C23.93 36 30.86 36 38 36 C38 40.62 38 45.24 38 50 C31.4 50 24.8 50 18 50 C18.495 52.475 18.495 52.475 19 55 C19.1337853 56.3268766 19.24063269 57.65683152 19.31640625 58.98828125 C19.35830078 59.69404297 19.40019531 60.39980469 19.44335938 61.12695312 C19.48267578 61.84818359 19.52199219 62.56941406 19.5625 63.3125 C19.60568359 64.05306641 19.64886719 64.79363281 19.69335938 65.55664062 C19.79870432 67.37091464 19.89978316 69.1854355 20 71 C15.05 71 10.1 71 5 71 C3.89609314 63.9625938 3.92580766 57.1224651 4 50 C-3.59 50 -11.18 50 -19 50 C-19 45.38 -19 40.76 -19 36 C-11.74 36 -4.48 36 3 36 C2.67 35.34 2.34 34.68 2 34 C2 31.03 2 28.06 2 25 C-4.93 25 -11.86 25 -19 25 C-19 20.71 -19 16.42 -19 12 C-12.4 12 -5.8 12 1 12 C0.67 8.04 0.34 4.08 0 0 Z " fill="#4D4D4D" transform="translate(328,577)"/>
+            <path d="M0 0 C16.17 0 32.34 0 49 0 C45.5605 16.051 45.5605 16.051 41.875 23.125 C41.16101238 24.54273887 40.44996206 25.9619617 39.7421875 27.3828125 C39.4313623 27.98496582 39.12053711 28.58711914 38.80029297 29.20751953 C37.92067835 31.17766308 37.28073909 32.85437041 37 35 C38.66268118 37.20492495 40.26157034 39.05237652 42.1875 41 C42.68314453 41.52078125 43.17878906 42.0415625 43.68945312 42.578125 C45.83865192 44.8266923 47.88749767 46.91239419 50.34765625 48.828125 C52.94086347 52.23669052 52.42898273 55.59897737 52.25 59.75 C52.23195312 60.54277344 52.21390625 61.33554687 52.1953125 62.15234375 C52.14833082 64.10208348 52.07659044 66.05119878 52 68 C41.84705717 63.44298147 34.1317145 54.27650164 27 46 C26.29875 46.928125 25.5975 47.85625 24.875 48.8125 C18.08466099 56.73456218 8.68448461 64.08895814 -1 68 C-1.66 68 -2.32 68 -3 68 C-4.29900801 57.18805452 -4.29900801 57.18805452 -3 52 C-0.61719668 49.16903441 1.73259984 47.70864637 4.9140625 45.83984375 C16.68054216 38.82463879 23.07105036 26.85789928 29 15 C19.43 15 9.86 15 0 15 C0 10.05 0 5.1 0 0 Z " fill="#4D4D4D" transform="translate(187,580)"/>
+            <path d="M0 0 C17.16 0 34.32 0 52 0 C52 4.62 52 9.24 52 14 C45.73 14 39.46 14 33 14 C33 25.22 33 36.44 33 48 C39.93 48 46.86 48 54 48 C54 52.62 54 57.24 54 62 C35.52 62 17.04 62 -2 62 C-2 57.38 -2 52.76 -2 48 C4.93 48 11.86 48 19 48 C19 36.78 19 25.56 19 14 C12.73 14 6.46 14 0 14 C0 9.38 0 4.76 0 0 Z " fill="#4D4D4D" transform="translate(558,582)"/>
+            <path d="M0 0 C3.96 0 7.92 0 12 0 C12.66 3.3 13.32 6.6 14 10 C23.57 10 33.14 10 43 10 C43.47761731 23.37328463 42.35287876 30.01373565 33.16015625 39.9453125 C29.34973057 43.5696957 25.40428988 47 20 47 C18.77003942 35.63994744 18.77003942 35.63994744 21.7109375 31.71875 C23.875 29.9375 23.875 29.9375 26.0546875 28.46484375 C28.41391667 26.91465176 28.41391667 26.91465176 30 23 C25.05 23 20.1 23 15 23 C15.20496094 24.33933594 15.40992188 25.67867187 15.62109375 27.05859375 C15.89332246 28.85154834 16.16545261 30.64451789 16.4375 32.4375 C16.57220703 33.31599609 16.70691406 34.19449219 16.84570312 35.09960938 C18.16101256 43.79348396 19.13968639 52.19975737 19 61 C17.18757948 61.02687279 15.37504767 61.04633715 13.5625 61.0625 C12.55316406 61.07410156 11.54382813 61.08570313 10.50390625 61.09765625 C8 61 8 61 7 60 C6.62638103 57.60667544 6.30852023 55.2288615 6.02734375 52.82421875 C5.93997452 52.10265091 5.85260529 51.38108307 5.7625885 50.63764954 C5.57819392 49.10706812 5.39591825 47.57623021 5.21557617 46.04516602 C4.93982401 43.70720414 4.65699732 41.37018191 4.37304688 39.03320312 C4.19488993 37.54692559 4.01714234 36.06059892 3.83984375 34.57421875 C3.75548569 33.87616623 3.67112762 33.17811371 3.58421326 32.45890808 C3.21092582 29.26709628 3 26.22134158 3 23 C0.03 23 -2.94 23 -6 23 C-6 19.04 -6 15.08 -6 11 C-3.69 11 -1.38 11 1 11 C0.67 7.37 0.34 3.74 0 0 Z " fill="#4D4D4D" transform="translate(379,588)"/>
+            <path d="M0 0 C14.85 0 29.7 0 45 0 C45 3.96 45 7.92 45 12 C39.72 12 34.44 12 29 12 C29 21.57 29 31.14 29 41 C34.61 41 40.22 41 46 41 C46 44.96 46 48.92 46 53 C30.16 53 14.32 53 -2 53 C-2 49.04 -2 45.08 -2 41 C3.94 41 9.88 41 16 41 C16 31.43 16 21.86 16 12 C10.72 12 5.44 12 0 12 C0 8.04 0 4.08 0 0 Z " fill="#4D4D4D" transform="translate(731,592)"/>
+            <path d="M0 0 C4.62 0 9.24 0 14 0 C14 7.59 14 15.18 14 23 C25.55 23 37.1 23 49 23 C49 27.62 49 32.24 49 37 C37.45 37 25.9 37 14 37 C14 48.22 14 59.44 14 71 C9.38 71 4.76 71 0 71 C0 47.57 0 24.14 0 0 Z " fill="#4D4D4D" transform="translate(851,577)"/>
+            <path d="M0 0 C18.48 0 36.96 0 56 0 C56 4.29 56 8.58 56 13 C50.06 13 44.12 13 38 13 C37.9175 14.485 37.835 15.97 37.75 17.5 C36.81175642 26.2651703 33.3711067 31.53532532 26.625 37.171875 C19.39436661 42.20749468 11.73065906 44.56346705 3 45 C3 40.38 3 35.76 3 31 C4.340625 30.5875 5.68125 30.175 7.0625 29.75 C12.37225313 27.96057139 17.30844738 26.21651723 20.8125 21.625 C22.07581511 18.8324087 23.0307461 15.9077617 24 13 C16.08 13 8.16 13 0 13 C0 8.71 0 4.42 0 0 Z " fill="#4D4D4D" transform="translate(246,602)"/>
+            <path d="M0 0 C19.14 0 38.28 0 58 0 C58 14.65827353 56.38911362 25.52847858 46.01171875 36.0078125 C37.1333682 44 37.1333682 44 32 44 C31.86463371 41.58145554 31.76579721 39.17050217 31.6875 36.75 C31.64560547 36.06808594 31.60371094 35.38617187 31.56054688 34.68359375 C31.51171875 32.671875 31.51171875 32.671875 32 29 C34.37890625 26.734375 34.37890625 26.734375 37 25 C39.53412903 21.60128577 40.96944383 18.12222468 42 14 C28.14 13.67 14.28 13.34 0 13 C0 8.71 0 4.42 0 0 Z " fill="#4D4D4D" transform="translate(492,580)"/>
+            <path d="M0 0 C4.62 0 9.24 0 14 0 C14.09970521 5.63756289 14.17185967 11.2746 14.21972656 16.9128418 C14.23970419 18.82634434 14.26689599 20.73978692 14.30175781 22.65307617 C14.53164503 35.60451628 14.64124542 47.43847782 6 58 C-1.80745183 65.91201591 -9.12533633 69.18755606 -20 71 C-20 66.05 -20 61.1 -20 56 C-18.494375 55.505 -16.98875 55.01 -15.4375 54.5 C-9.83114085 52.25745634 -6.2042747 49.11591586 -3 44 C-0.92996945 38.9598427 -0.66331562 34.46210519 -0.5859375 29.1015625 C-0.56657135 28.26660248 -0.5472052 27.43164246 -0.5272522 26.57138062 C-0.46780386 23.92268874 -0.42121106 21.27395257 -0.375 18.625 C-0.33678818 16.82159636 -0.29773461 15.01821034 -0.2578125 13.21484375 C-0.16213119 8.81004016 -0.07797289 4.4051512 0 0 Z " fill="#4D4D4D" transform="translate(466,578)"/>
+            <path d="M0 0 C4.62 0 9.24 0 14 0 C13.05235089 13.89885355 4.4962195 27.49183082 -5.43359375 36.8671875 C-16.26203806 45.86616862 -27.84924889 51 -42 51 C-42 46.05 -42 41.1 -42 36 C-39.339375 35.6596875 -39.339375 35.6596875 -36.625 35.3125 C-25.42231083 33.40369867 -16.05053823 27.91005458 -9.28125 18.6484375 C-5.59148065 12.71845105 -2.78663704 6.39287322 0 0 Z " fill="#4D4D4D" transform="translate(709,595)"/>
+            <path d="M0 0 C4.62 0 9.24 0 14 0 C11.83054255 11.20886348 8.04231754 19.96620742 1 29 C0.08734375 30.17949219 0.08734375 30.17949219 -0.84375 31.3828125 C-9.43489515 41.76964783 -21.82517935 48.45003471 -35 51 C-37.31 51 -39.62 51 -42 51 C-42 46.05 -42 41.1 -42 36 C-39.339375 35.6596875 -39.339375 35.6596875 -36.625 35.3125 C-25.24565908 33.40699716 -16.95918939 28.06007675 -10 19 C-5.72744239 12.97733706 -2.91838101 6.78523586 0 0 Z " fill="#4D4D4D" transform="translate(827,595)"/>
+            <path d="M0 0 C4.29 0 8.58 0 13 0 C13.54483619 14.6046367 13.40437502 26.65851037 3 38 C-1.96151032 43.11885208 -7.15333376 46.8258121 -14 49 C-14.99 49 -15.98 49 -17 49 C-17 44.05 -17 39.1 -17 34 C-15.5975 33.278125 -14.195 32.55625 -12.75 31.8125 C-7.07580523 28.65027214 -4.03556232 25.18843645 -2 19 C-1.48315026 15.74155193 -1.17383608 12.47224739 -0.875 9.1875 C-0.78863281 8.30384766 -0.70226562 7.42019531 -0.61328125 6.50976562 C-0.40221556 4.34047942 -0.20020574 2.17031542 0 0 Z " fill="#4D4D4D" transform="translate(509,600)"/>
+            <path d="M0 0 C16.5 0 33 0 50 0 C50 4.62 50 9.24 50 14 C33.5 14 17 14 0 14 C0 9.38 0 4.76 0 0 Z " fill="#4D4D4D" transform="translate(249,580)"/>
+            <path d="M0 0 C13.2 0 26.4 0 40 0 C40 4.62 40 9.24 40 14 C26.8 14 13.6 14 0 14 C0 9.38 0 4.76 0 0 Z " fill="#4D4D4D" transform="translate(619,605)"/>
+            <path d="M0 0 C4.62 0 9.24 0 14 0 C14 13.2 14 26.4 14 40 C9.38 40 4.76 40 0 40 C0 26.8 0 13.6 0 0 Z " fill="#4D4D4D" transform="translate(434,578)"/>
+            <path d="M0 0 C4.29 0 8.58 0 13 0 C13 1.32 13 2.64 13 4 C16.96 4 20.92 4 25 4 C25 6.97 25 9.94 25 13 C12.46 13 -0.08 13 -13 13 C-13 10.03 -13 7.06 -13 4 C-8.71 4 -4.42 4 0 4 C0 2.68 0 1.36 0 0 Z " fill="#4D4D4D" transform="translate(113,568)"/>
+            <path d="M0 0 C8.91 0 17.82 0 27 0 C27 4.62 27 9.24 27 14 C18.09 14 9.18 14 0 14 C0 9.38 0 4.76 0 0 Z " fill="#4D4D4D" transform="translate(785,581)"/>
+            <path d="M0 0 C8.25 0 16.5 0 25 0 C25 4.62 25 9.24 25 14 C16.75 14 8.5 14 0 14 C0 9.38 0 4.76 0 0 Z " fill="#4D4D4D" transform="translate(667,600)"/>
+            <path d="M0 0 C8.25 0 16.5 0 25 0 C25 4.62 25 9.24 25 14 C16.75 14 8.5 14 0 14 C0 9.38 0 4.76 0 0 Z " fill="#4D4D4D" transform="translate(667,580)"/>
+            <path d="M0 0 C2.64 0 5.28 0 8 0 C8 4.62 8 9.24 8 14 C5.36 14 2.72 14 0 14 C0 9.38 0 4.76 0 0 Z " fill="#4D4D4D" transform="translate(716,568)"/>
+            <path d="M0 0 C2.64 0 5.28 0 8 0 C8 4.62 8 9.24 8 14 C5.36 14 2.72 14 0 14 C0 9.38 0 4.76 0 0 Z " fill="#4D4D4D" transform="translate(706,568)"/>
+          </svg>
+          </div>
+          <span class="text-lg font-bold text-gray-800 whitespace-nowrap">塾ステキャリアエージェント 面談予約システム</span>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <!-- 電話予約登録ボタン -->
+        <button @click="showManualBookingModal = true" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm">
+          <i class="ph-bold ph-phone"></i>
+          電話予約登録
+        </button>
+
+        <!-- 面談予約フォームボタン -->
+        <a href="https://script.google.com/a/macros/tomonokai-corp.com/s/AKfycbzwxXeBDR8LeHoYd5i4CRb2IElFR1AQcPzPg49ra4rYQc_njNox8LWIxlSMnAPHE25L_w/exec" target="_blank" class="bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm">
+          <i class="ph-bold ph-calendar-check"></i>
+          面談予約フォーム
+        </a>
+
+        <!-- ユーザープロフィール -->
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm overflow-hidden">
+            <img v-if="currentUser.image" :src="currentUser.image" :alt="currentUser.name" class="w-full h-full object-cover">
+            <span v-else>{{ currentUser.initial || 'U' }}</span>
+          </div>
+          <span class="text-sm font-medium text-gray-700">{{ currentUser.name }}</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+      <!-- サイドバー (デスクトップのみ) -->
+      <aside class="hidden lg:flex w-80 bg-white border-r border-gray-200 flex-col overflow-y-auto">
+        <!-- アサイン優先順位 -->
+        <div class="p-4 border-b border-gray-200">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-xs font-semibold text-gray-500 uppercase">アサイン優先順位</h2>
+            <div class="flex items-center gap-2">
+              <button 
+                @click="openPriorityModal" 
+                class="text-xs text-blue-600 hover:text-blue-700 font-medium transition"
+              >
+                設定
+              </button>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <template v-if="sortedInterviewers.length > 0">
+              <template v-for="(interviewer, index) in sortedInterviewers" :key="interviewer.id">
+                <span class="text-sm text-gray-700 font-medium">{{ interviewer.name }}</span>
+                <span v-if="index < sortedInterviewers.length - 1" class="text-gray-400">></span>
+              </template>
+            </template>
+            <p v-else class="text-xs text-gray-400">面談官が登録されていません</p>
+          </div>
+        </div>
+
+        <!-- 統計情報 -->
+        <div class="p-4 border-b border-gray-200">
+          <h2 class="text-xs font-semibold text-gray-500 uppercase mb-3">統計</h2>
+          <div class="space-y-3">
+            <div class="bg-blue-50 rounded-lg p-3 border border-blue-200">
+              <p class="text-2xl font-bold text-blue-700">{{ statistics.todayCount }}</p>
+              <p class="text-xs text-blue-600 mt-1">今日の面談数</p>
+            </div>
+            <div class="bg-blue-50 rounded-lg p-3 border border-blue-200">
+              <p class="text-2xl font-bold text-blue-700">{{ statistics.weekCount }}</p>
+              <p class="text-xs text-blue-600 mt-1">今週の合計</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 直近の予約リスト -->
+        <div class="flex-1 p-4">
+          <h2 class="text-xs font-semibold text-gray-500 uppercase mb-3">直近の予約</h2>
+          <div class="space-y-2">
+            <div 
+              v-for="interview in upcomingInterviews" 
+              :key="interview.id"
+              @click="focusEvent(interview.id)"
+              class="p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition border border-gray-200"
+            >
+              <p class="text-sm font-medium text-gray-800">{{ interview.guestName }}様</p>
+              <p class="text-xs text-gray-500 mt-1">{{ formatDateShort(interview.startAt) }} {{ formatTime(interview.startAt) }}</p>
+              <p v-if="interview.interviewerName" class="text-xs text-gray-400 mt-1">担当: {{ interview.interviewerName }}</p>
+            </div>
+            <p v-if="upcomingInterviews.length === 0" class="text-xs text-gray-400 text-center py-4">予約はありません</p>
+          </div>
+        </div>
+      </aside>
+
+      <!-- カレンダーメインエリア -->
+      <main class="flex-1 bg-white relative flex flex-col">
+        <!-- 凡例 -->
+        <div class="absolute top-4 right-16 flex items-center gap-4 z-10 text-xs font-medium bg-white/80 backdrop-blur px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
+          <div class="flex items-center gap-1.5">
+            <span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>
+            <span class="text-gray-600">面談予約</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+            <span class="text-gray-600">他メンバー</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="w-2.5 h-2.5 rounded-full bg-gray-400"></span>
+            <span class="text-gray-600">Googleカレンダー</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+            <span class="text-gray-600">ブロック</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="w-2.5 h-2.5 rounded border border-solid border-blue-300 bg-blue-50"></span>
+            <span class="text-gray-600">チーム空き枠</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="w-2.5 h-2.5 rounded border border-dashed border-green-300 bg-green-50"></span>
+            <span class="text-gray-600">個人空き枠</span>
+          </div>
+        </div>
+
+        <div class="flex-1 p-4 h-full overflow-hidden">
+          <div id="calendar" class="h-full"></div>
+        </div>
+        
+        <!-- ローディングオーバーレイ -->
+        <transition name="fade">
+          <div v-if="loading" class="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-50">
+            <div class="flex flex-col items-center gap-3">
+              <div class="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+              <p class="text-sm font-medium text-gray-500">スケジュールを同期中...</p>
+            </div>
+          </div>
+        </transition>
+      </main>
+
+    </div>
+
+    <!-- イベント詳細モーダル -->
+    <transition name="fade">
+      <div v-if="selectedEvent" @click.self="selectedEvent = null" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+          <div class="p-6">
+            <div class="flex items-start justify-between mb-4">
+              <h3 class="text-lg font-bold text-gray-800">{{ selectedEvent.title }}</h3>
+              <button @click="selectedEvent = null" class="text-gray-400 hover:text-gray-600">
+                <i class="ph-bold ph-x text-xl"></i>
+              </button>
+            </div>
+
+            <div class="space-y-4">
+              <div class="flex items-start gap-3">
+                <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 flex-shrink-0">
+                  <i class="ph-fill ph-clock"></i>
+                </div>
+                <div>
+                  <p class="text-sm font-medium text-gray-800">{{ formatDateFull(selectedEvent.start) }}</p>
+                  <p class="text-xs text-gray-400">{{ formatTime(selectedEvent.start) }} - {{ formatTime(selectedEvent.end) }}</p>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <span :class="getEventBadgeClass(selectedEvent)" class="text-xs font-medium px-2.5 py-1 rounded-full">
+                  {{ getEventTypeLabel(selectedEvent) }}
+                </span>
+              </div>
+
+              <!-- 面談予約の場合 -->
+              <div v-if="selectedEvent.extendedProps && selectedEvent.extendedProps.type === 'interview'" class="space-y-4">
+                <div class="flex items-start gap-3">
+                  <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 flex-shrink-0">
+                    <i class="ph-fill ph-envelope-simple"></i>
+                  </div>
+                  <div>
+                    <p class="text-sm text-gray-800 break-all">{{ selectedEvent.extendedProps.guestEmail || '-' }}</p>
+                    <p class="text-xs text-gray-400">候補者メールアドレス</p>
+                  </div>
+                </div>
+                
+                <div class="flex items-start gap-3">
+                  <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 flex-shrink-0">
+                    <i class="ph-fill ph-user-circle"></i>
+                  </div>
+                  <div>
+                    <p class="text-sm text-gray-800">{{ selectedEvent.extendedProps.interviewerName || '担当者' }}</p>
+                    <p class="text-xs text-gray-400">担当面談官</p>
+                  </div>
+                </div>
+
+                <!-- アクションボタン -->
+                <div v-if="selectedEvent.extendedProps.meetUrl" class="pt-2">
+                  <a :href="selectedEvent.extendedProps.meetUrl" target="_blank" class="flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition shadow-sm shadow-blue-200">
+                    <i class="ph-bold ph-video-camera"></i>
+                    Google Meet に参加
+                  </a>
+                  <p class="text-center text-xs text-gray-400 mt-2">
+                    <i class="ph-fill ph-info"></i> 時間になったらクリックしてください
+                  </p>
+                </div>
+              </div>
+
+              <!-- 他メンバーの面談予約の場合 -->
+              <div v-else-if="selectedEvent.extendedProps && selectedEvent.extendedProps.type === 'other_member_interview'" class="bg-blue-50 p-3 rounded-lg text-xs text-blue-700">
+                <p>これは他のメンバーの面談予約です。詳細は該当メンバーのGoogleカレンダーで確認してください。</p>
+              </div>
+
+              <!-- Googleカレンダー予定の場合 -->
+              <div v-else-if="selectedEvent.extendedProps && selectedEvent.extendedProps.type === 'gcal'" class="bg-gray-50 p-3 rounded-lg text-xs text-gray-500">
+                <p>これはあなたのGoogleカレンダーから同期された予定です。詳細はGoogleカレンダーで確認してください。</p>
+              </div>
+
+              <!-- ブロック時間の場合 -->
+              <div v-else-if="selectedEvent.extendedProps && selectedEvent.extendedProps.type === 'block'" class="bg-red-50 p-3 rounded-lg text-xs text-red-700">
+                <p>この時間はブロックされています（TimeRexで予約不可）。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- 手動予約登録モーダル -->
+    <transition name="fade">
+      <div v-if="showManualBookingModal" @click.self="showManualBookingModal = false" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-xl max-w-md w-full">
+          <div class="p-6">
+            <div class="flex items-start justify-between mb-4">
+              <h3 class="text-lg font-bold text-gray-800">電話予約登録</h3>
+              <button @click="showManualBookingModal = false" class="text-gray-400 hover:text-gray-600">
+                <i class="ph-bold ph-x text-xl"></i>
+              </button>
+            </div>
+
+            <form @submit.prevent="submitManualBooking" class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">候補者名 <span class="text-red-500">*</span></label>
+                <input v-model="manualBooking.guestName" type="text" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">メールアドレス <span class="text-red-500">*</span></label>
+                <input v-model="manualBooking.guestEmail" type="email" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">面接官 <span class="text-red-500">*</span></label>
+                <select v-model="manualBooking.interviewerId" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">選択してください</option>
+                  <option v-for="interviewer in sortedInterviewers" :key="interviewer.id" :value="interviewer.id">
+                    {{ interviewer.name }}
+                  </option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">開始日時 <span class="text-red-500">*</span></label>
+                <input v-model="manualBooking.startTime" type="datetime-local" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">終了日時 <span class="text-red-500">*</span></label>
+                <input v-model="manualBooking.endTime" type="datetime-local" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">備考</label>
+                <textarea v-model="manualBooking.description" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+              </div>
+
+              <div class="flex gap-3 pt-2">
+                <button type="button" @click="showManualBookingModal = false" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2.5 rounded-lg transition">
+                  キャンセル
+                </button>
+                <button type="submit" :disabled="submitting" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg transition disabled:opacity-50 shadow-sm">
+                  {{ submitting ? '登録中...' : '登録' }}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- 優先順位設定モーダル -->
+    <transition name="fade">
+      <div v-if="showPriorityModal" @click.self="showPriorityModal = false" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+          <div class="p-6 border-b border-gray-200 flex-shrink-0">
+            <div class="flex items-start justify-between">
+              <div>
+                <h3 class="text-lg font-bold text-gray-800">アサイン優先順位の設定</h3>
+                <p class="text-sm text-gray-500 mt-1">数値が小さいほど優先度が高くなります（1が最優先）</p>
+              </div>
+              <button @click="showPriorityModal = false" class="text-gray-400 hover:text-gray-600">
+                <i class="ph-bold ph-x text-xl"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="flex-1 overflow-y-auto p-6">
+            <div v-if="priorityEditList.length === 0" class="text-center py-8 text-gray-500">
+              <p>面談官が登録されていません</p>
+            </div>
+            <div v-else class="space-y-3">
+              <div 
+                v-for="(interviewer, index) in priorityEditList" 
+                :key="interviewer.id"
+                class="flex items-center gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition"
+              >
+                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm">
+                  {{ index + 1 }}
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-medium text-gray-800 truncate">{{ interviewer.name }}</p>
+                  <p class="text-xs text-gray-500 mt-0.5">ID: {{ interviewer.id }}</p>
+                </div>
+                <div class="flex-shrink-0 w-32">
+                  <label class="block text-xs font-medium text-gray-700 mb-1">優先順位</label>
+                  <input 
+                    v-model.number="interviewer.priority" 
+                    type="number" 
+                    min="1" 
+                    step="1"
+                    placeholder="未設定"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p class="text-xs text-gray-400 mt-1">空欄=最低優先</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-6 border-t border-gray-200 flex-shrink-0 bg-gray-50">
+            <div class="flex gap-3">
+              <button 
+                @click="showPriorityModal = false" 
+                class="flex-1 bg-white hover:bg-gray-50 text-gray-700 font-medium py-2.5 rounded-lg transition border border-gray-300"
+              >
+                キャンセル
+              </button>
+              <button 
+                @click="savePriorities" 
+                :disabled="savingPriorities || priorityEditList.length === 0"
+                class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+              >
+                {{ savingPriorities ? '保存中...' : '保存' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+  </div>
+
+  <script>
+    const { createApp, ref, onMounted, computed, watch } = Vue;
+
+    createApp({
+      setup() {
+        // GASテンプレートから受け取るデータ
+        const interviewerId = '<?= interviewerId ?>';
+        const currentUserEmail = '<?= currentUserEmail ?>';
+        const currentUserName = '<?= currentUserName ?>';
+        const currentUserImage = '<?= currentUserImage ?>';
+        
+        const loading = ref(false);
+        const selectedEvent = ref(null);
+        const showManualBookingModal = ref(false);
+        const showPriorityModal = ref(false);
+        const submitting = ref(false);
+        const savingPriorities = ref(false);
+        let calendarApi = null;
+
+        const currentUser = ref({
+          name: currentUserName || '面談官',
+          email: currentUserEmail || '',
+          initial: currentUserName ? currentUserName.charAt(0) : '面',
+          image: currentUserImage || '',
+          id: interviewerId || 'me'
+        });
+
+        const statistics = ref({
+          todayCount: 0,
+          weekCount: 0
+        });
+
+        const allEvents = ref([]);
+        const upcomingInterviews = ref([]);
+        const interviewers = ref([]); // 面談官一覧
+        const priorityEditList = ref([]); // 優先順位編集用リスト
+
+        const manualBooking = ref({
+          guestName: '',
+          guestEmail: '',
+          interviewerId: interviewerId || '',
+          startTime: '',
+          endTime: '',
+          description: ''
+        });
+
+        // 優先順位でソートされた面談官一覧（表示用）
+        const sortedInterviewers = computed(() => {
+          return [...interviewers.value].sort((a, b) => {
+            const priorityA = a.priority !== undefined && a.priority !== null ? a.priority : Number.MAX_SAFE_INTEGER;
+            const priorityB = b.priority !== undefined && b.priority !== null ? b.priority : Number.MAX_SAFE_INTEGER;
+            if (priorityA !== priorityB) {
+              return priorityA - priorityB;
+            }
+            return (a.rowIndex || 0) - (b.rowIndex || 0);
+          });
+        });
+
+        // GASからデータを取得
+        const fetchAdminData = (startDate = null, endDate = null) => {
+          loading.value = true;
+          google.script.run
+            .withSuccessHandler((data) => {
+              // nullチェックを追加
+              if (!data) {
+                console.error('getAdminData returned null or undefined');
+                alert('データの取得に失敗しました: サーバーからの応答がありません');
+                loading.value = false;
+                return;
+              }
+
+              if (data && data.success) {
+                allEvents.value = data.events || [];
+                upcomingInterviews.value = data.upcomingInterviews || [];
+                statistics.value = data.statistics || { todayCount: 0, weekCount: 0 };
+                interviewers.value = data.interviewers || [];
+                
+                if (data.interviewer) {
+                  // データが返ってきた場合は、それを優先（interviewersシートの名前が正確）
+                  if (data.interviewer.name && data.interviewer.name.trim() !== '') {
+                    currentUser.value.name = data.interviewer.name;
+                    currentUser.value.initial = data.interviewer.name.charAt(0);
+                  }
+                  // 現在のユーザーのIDを更新（テンプレートから取得した値が空の場合）
+                  if (data.interviewer.id && (!interviewerId || interviewerId === '')) {
+                    currentUser.value.id = data.interviewer.id;
+                    // manualBookingのデフォルト値も更新
+                    if (!manualBooking.value.interviewerId || manualBooking.value.interviewerId === '') {
+                      manualBooking.value.interviewerId = data.interviewer.id;
+                    }
+                  }
+                }
+                
+                // 優先順位表示用に、interviewersシートの名前を使用（既にdata.interviewersに含まれている）
+                // interviewers.valueは既に更新されているので、そのまま使用可能
+
+                // カレンダーを更新
+                if (calendarApi) {
+                  calendarApi.refetchEvents();
+                }
+              } else {
+                console.error('Failed to fetch admin data:', data.error);
+                alert('データの取得に失敗しました: ' + (data.error || 'Unknown error'));
+              }
+              loading.value = false;
+            })
+            .withFailureHandler((error) => {
+              console.error('Error fetching admin data:', error);
+              alert('エラーが発生しました: ' + error.message);
+              loading.value = false;
+            })
+            .getAdminData(
+              null, // 常に全員の予定を取得
+              startDate ? startDate.toISOString() : null,
+              endDate ? endDate.toISOString() : null
+            );
+        };
+
+        // カレンダー初期化
+        const initCalendar = () => {
+          const calendarEl = document.getElementById('calendar');
+          calendarApi = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'timeGridWeek',
+            locale: 'ja',
+            headerToolbar: {
+              left: 'prev,next today',
+              center: 'title',
+              right: 'dayGridMonth,timeGridWeek'
+            },
+            buttonText: {
+              today: '今日',
+              month: '月',
+              week: '週'
+            },
+            slotMinTime: '09:00:00',
+            slotMaxTime: '20:00:00',
+            allDaySlot: false,
+            height: '100%',
+            nowIndicator: true,
+            events: (info, successCallback) => {
+              // 全員の予定を表示（フィルタリングなし）
+              successCallback(allEvents.value);
+            },
+            eventContent: (arg) => {
+              // 面談予約の場合はカスタム表示
+              const eventType = arg.event.extendedProps?.type;
+              if (eventType === 'interview' || eventType === 'other_member_interview') {
+                const guestName = arg.event.extendedProps?.guestName || '';
+                const interviewerName = arg.event.extendedProps?.interviewerName || '担当者';
+                const startTime = formatTime(arg.event.start);
+                const endTime = formatTime(arg.event.end);
+                
+                const html = `
+                  <div style="padding: 2px 4px; font-size: 0.85rem; line-height: 1.4;">
+                    <div style="font-weight: 600;">面談：${guestName}様</div>
+                    <div style="font-size: 0.75rem; margin-top: 2px;">${startTime}～${endTime}</div>
+                    <div style="font-size: 0.75rem; margin-top: 2px;">担当者：${interviewerName}</div>
+                  </div>
+                `;
+                return { html: html };
+              }
+              // その他のイベントはデフォルト表示
+              return null;
+            },
+            eventDidMount: (info) => {
+              // 面談可能枠の場合は背景として表示
+              if (info.event.extendedProps?.type === 'available_slot') {
+                if (info.el) {
+                  const slotType = info.event.extendedProps?.slotType || 'team';
+                  // チーム空き枠: 青系、実線
+                  // 個人空き枠: 緑系、点線
+                  const backgroundColor = info.event.backgroundColor || (slotType === 'individual' ? '#F0FDF4' : '#EFF6FF');
+                  const borderColor = info.event.borderColor || (slotType === 'individual' ? '#86EFAC' : '#93C5FD');
+                  const borderStyle = info.event.borderStyle || (slotType === 'individual' ? 'dashed' : 'solid');
+                  
+                  // 背景イベントとして薄く表示
+                  info.el.style.backgroundColor = backgroundColor;
+                  info.el.style.border = `1px ${borderStyle} ${borderColor}`;
+                  info.el.style.borderRadius = '4px';
+                  info.el.style.opacity = '0.5';
+                  info.el.style.pointerEvents = 'none'; // クリックできないように
+                  // チーム空き枠は個人空き枠より下のレイヤーに
+                  info.el.style.zIndex = slotType === 'team' ? '1' : '2';
+                  // テキストを非表示
+                  const titleEl = info.el.querySelector('.fc-event-title');
+                  if (titleEl) {
+                    titleEl.style.display = 'none';
+                  }
+                }
+                return;
+              }
+              
+              // 点線枠で自身と他メンバーを区別
+              const borderStyle = info.event.extendedProps?.borderStyle || 'solid';
+              const borderWidth = info.event.extendedProps?.borderWidth || 2;
+              if (info.el) {
+                info.el.style.borderStyle = borderStyle;
+                info.el.style.borderWidth = `${borderWidth}px`;
+              }
+            },
+            eventClick: (info) => {
+              // 面談可能枠はクリックしても何もしない
+              if (info.event.extendedProps?.type === 'available_slot') {
+                return;
+              }
+              
+              selectedEvent.value = {
+                id: info.event.id,
+                title: info.event.title || (info.event.extendedProps?.originalTitle || ''),
+                start: info.event.start,
+                end: info.event.end,
+                extendedProps: info.event.extendedProps,
+                backgroundColor: info.event.backgroundColor
+              };
+            },
+            selectable: true,
+            select: (info) => {
+              const message = `${formatDateFull(info.start)} から ${formatTime(info.end)} をブロックしますか？\n(TimeRexで予約不可になります)`;
+              if (confirm(message)) {
+                createBlockEvent(interviewerId, info.start, info.end);
+              }
+              calendarApi.unselect();
+            },
+            datesSet: (info) => {
+              // カレンダーの表示範囲が変更されたらデータを再取得
+              fetchAdminData(info.start, info.end);
+            }
+          });
+          calendarApi.render();
+        };
+
+        // ブロックイベント作成
+        const createBlockEvent = (interviewerId, startTime, endTime) => {
+          if (!interviewerId) {
+            alert('面談官IDが設定されていません。');
+            return;
+          }
+
+          loading.value = true;
+          google.script.run
+            .withSuccessHandler((result) => {
+              if (result.success) {
+                alert('ブロック時間を登録しました。');
+                fetchAdminData();
+              } else {
+                alert('ブロック時間の登録に失敗しました: ' + (result.error || 'Unknown error'));
+              }
+              loading.value = false;
+            })
+            .withFailureHandler((error) => {
+              console.error('Error creating block event:', error);
+              alert('エラーが発生しました: ' + error.message);
+              loading.value = false;
+            })
+            .createBlockEvent(interviewerId, startTime.toISOString(), endTime.toISOString());
+        };
+
+
+        // 特定イベントへジャンプ
+        const focusEvent = (id) => {
+          const event = allEvents.value.find(e => e.id === id);
+          if (event && calendarApi) {
+            calendarApi.gotoDate(event.start);
+            selectedEvent.value = {
+              id: event.id,
+              title: event.title,
+              start: event.start,
+              end: event.end,
+              extendedProps: event.extendedProps,
+              backgroundColor: event.backgroundColor
+            };
+          }
+        };
+
+        // 優先順位設定モーダルを開く
+        const openPriorityModal = () => {
+          // 編集用リストを作成（元のデータをコピー）
+          priorityEditList.value = interviewers.value.map(i => ({
+            id: i.id,
+            name: i.name,
+            priority: i.priority !== undefined && i.priority !== null && i.priority !== Number.MAX_SAFE_INTEGER 
+              ? i.priority 
+              : null
+          }));
+          showPriorityModal.value = true;
+        };
+
+        // 優先順位を保存
+        const savePriorities = () => {
+          savingPriorities.value = true;
+          
+          const updates = priorityEditList.value.map(i => ({
+            interviewerId: i.id,
+            priority: i.priority !== null && i.priority !== undefined ? Number(i.priority) : null
+          }));
+
+          google.script.run
+            .withSuccessHandler((result) => {
+              savingPriorities.value = false;
+              if (result.success) {
+                alert('優先順位を更新しました。');
+                showPriorityModal.value = false;
+                // データを再取得
+                fetchAdminData();
+              } else {
+                alert('優先順位の更新に失敗しました: ' + (result.error || 'Unknown error'));
+              }
+            })
+            .withFailureHandler((error) => {
+              savingPriorities.value = false;
+              console.error('Error updating priorities:', error);
+              alert('エラーが発生しました: ' + error.message);
+            })
+            .updateInterviewerPriorities(updates);
+        };
+
+        // 手動予約登録
+        const submitManualBooking = () => {
+          if (!manualBooking.value.interviewerId) {
+            alert('面接官を選択してください。');
+            return;
+          }
+
+          submitting.value = true;
+          const bookingData = {
+            interviewerId: manualBooking.value.interviewerId,
+            guestName: manualBooking.value.guestName,
+            guestEmail: manualBooking.value.guestEmail,
+            startTime: manualBooking.value.startTime,
+            endTime: manualBooking.value.endTime,
+            description: manualBooking.value.description || ''
+          };
+
+          google.script.run
+            .withSuccessHandler((result) => {
+              submitting.value = false;
+              if (result.success) {
+                alert('予約を登録しました。');
+                showManualBookingModal.value = false;
+                // フォームをリセット
+                manualBooking.value = {
+                  guestName: '',
+                  guestEmail: '',
+                  interviewerId: interviewerId || '',
+                  startTime: '',
+                  endTime: '',
+                  description: ''
+                };
+                // データを再取得
+                fetchAdminData();
+              } else {
+                alert('予約の登録に失敗しました: ' + (result.error || 'Unknown error'));
+              }
+            })
+            .withFailureHandler((error) => {
+              submitting.value = false;
+              console.error('Error registering manual booking:', error);
+              alert('エラーが発生しました: ' + error.message);
+            })
+            .registerManualBooking(bookingData);
+        };
+
+        // Utility functions
+        const formatDateFull = (d) => {
+          const date = d instanceof Date ? d : new Date(d);
+          return date.toLocaleString('ja-JP', { 
+            month: 'short', 
+            day: 'numeric', 
+            weekday: 'short', 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          });
+        };
+        
+        const formatDateShort = (d) => {
+          const date = d instanceof Date ? d : new Date(d);
+          return date.toLocaleString('ja-JP', { 
+            month: 'short', 
+            day: 'numeric', 
+            weekday: 'short' 
+          });
+        };
+        
+        const formatTime = (d) => {
+          const date = d instanceof Date ? d : new Date(d);
+          return date.toLocaleString('ja-JP', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          });
+        };
+
+        const getEventBadgeClass = (e) => {
+          if (e.extendedProps && e.extendedProps.type === 'interview') return 'bg-green-100 text-green-700';
+          if (e.extendedProps && e.extendedProps.type === 'other_member_interview') return 'bg-blue-100 text-blue-600';
+          if (e.extendedProps && e.extendedProps.type === 'gcal') return 'bg-gray-100 text-gray-600';
+          if (e.extendedProps && e.extendedProps.type === 'block') return 'bg-red-100 text-red-700';
+          return 'bg-blue-100 text-blue-700';
+        };
+        
+        const getEventTypeLabel = (e) => {
+          if (e.extendedProps && e.extendedProps.type === 'interview') return '面談予約';
+          if (e.extendedProps && e.extendedProps.type === 'other_member_interview') return '他メンバー';
+          if (e.extendedProps && e.extendedProps.type === 'gcal') return 'Googleカレンダー';
+          if (e.extendedProps && e.extendedProps.type === 'block') return 'ブロック';
+          return 'その他';
+        };
+
+        // モーダルが開かれた時にデフォルト値を設定
+        watch(showManualBookingModal, (isOpen) => {
+          if (isOpen) {
+            // デフォルトで現在のユーザーを選択
+            let defaultInterviewerId = interviewerId || '';
+            
+            // interviewerIdが空の場合、interviewersリストから現在のユーザーのメールアドレスに一致する面接官を探す
+            if (!defaultInterviewerId && currentUserEmail && interviewers.value.length > 0) {
+              const matchedInterviewer = interviewers.value.find(i => 
+                i.email && i.email.toLowerCase() === currentUserEmail.toLowerCase()
+              );
+              if (matchedInterviewer) {
+                defaultInterviewerId = matchedInterviewer.id;
+              }
+            }
+            
+            // それでも見つからない場合、interviewersリストの最初の要素を使用（フォールバック）
+            if (!defaultInterviewerId && interviewers.value.length > 0) {
+              defaultInterviewerId = interviewers.value[0].id;
+            }
+            
+            manualBooking.value.interviewerId = defaultInterviewerId;
+          }
+        });
+
+        onMounted(() => {
+          initCalendar();
+          // 初期データ取得
+          fetchAdminData();
+        });
+
+        return {
+          currentUser,
+          upcomingInterviews,
+          selectedEvent,
+          showManualBookingModal,
+          showPriorityModal,
+          manualBooking,
+          submitting,
+          savingPriorities,
+          loading,
+          statistics,
+          interviewers,
+          sortedInterviewers,
+          priorityEditList,
+          focusEvent,
+          submitManualBooking,
+          openPriorityModal,
+          savePriorities,
+          formatDateFull,
+          formatDateShort,
+          formatTime,
+          getEventBadgeClass,
+          getEventTypeLabel
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
+

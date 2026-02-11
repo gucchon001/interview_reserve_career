@@ -1,0 +1,40 @@
+# Secrets and sensitive information
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Google Apps Script
+.clasp.json
+
+# Node modules (if any)
+node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+temp_*
+*.tmp
+

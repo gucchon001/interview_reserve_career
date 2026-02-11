@@ -1,0 +1,10 @@
+{
+  "dataFreshness": "900s",
+  "sourceHierarchyDatasets": {
+    "datasetTemplate": {
+      "location": "asia-northeast1"
+    }
+  },
+  "merge": {}
+}
+

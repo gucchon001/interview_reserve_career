@@ -1,0 +1,266 @@
+<!DOCTYPE html><html lang="ja"><head>
+	<meta charset="UTF-8">
+	<meta http-equiv="content-language" content="ja">
+
+	
+	<!-- Google tag (gtag.js) -->
+	<script async="" src="https://www.googletagmanager.com/gtag/js?id=G-CMHGTWTLVE"></script>
+	<script>
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+
+	gtag('config', 'G-CMHGTWTLVE');
+	</script>
+
+	<!--	OGP-->
+			<meta property="og:title" content="日程調整ウィジェット | TimeRex Developer Portal">
+			<meta property="og:description" content="TimeRex Developer PortalはTimeRexに関する開発者向けの情報を発信しています。">
+			<meta property="og:site_name" content="TimeRex Developer Portal">
+			<meta property="og:fb:app_id" content="">
+			<meta property="og:type" content="product">
+			<meta property="og:url" content="https://developers.timerex.net/ja/widget/">
+			<meta property="og:image" content="https://developers.timerex.net/wp-content/themes/TimeRex-Developers-Portal/assets/images/common/timerex-developer-portal-og.png">
+	
+	<!-- Twitter Card -->
+	<meta name="twitter:card" content="summary_large_image">
+
+	<title>日程調整ウィジェット | TimeRex Developer Portal</title>
+	<meta name="description" content="TimeRex Developer PortalはTimeRexに関する開発者向けの情報を発信しています。">
+
+	<!-- Global site tag (gtag.js) - Google Analytics -->
+
+	<script src="https://unpkg.com/@stoplight/elements-dev-portal/web-components.min.js"></script>
+	<link rel="stylesheet" href="https://unpkg.com/@stoplight/elements-dev-portal/styles.min.css">
+
+	<script src="https://unpkg.com/@stoplight/elements/web-components.min.js"></script>
+	<link rel="stylesheet" href="https://unpkg.com/@stoplight/elements/styles.min.css">
+
+	<link rel="stylesheet" href="https://developers.timerex.net/wp-content/plugins/sitepress-multilingual-cms/templates/language-switchers/legacy-dropdown-click/style.min.css" media="all">
+	<script type="text/javascript" src="https://developers.timerex.net/wp-content/plugins/sitepress-multilingual-cms/templates/language-switchers/legacy-dropdown-click/script.min.js"></script>
+
+	<link rel="stylesheet" href="https://developers.timerex.net/wp-content/themes/TimeRex-Developers-Portal/assets/css/style.css" media="all">
+
+	<link rel="apple-touch-icon" sizes="180x180" href="https://developers.timerex.net/wp-content/themes/TimeRex-Developers-Portal/assets/images/common/favicon/apple-touch-icon.png">
+	<link rel="icon" type="image/png" sizes="32x32" href="https://developers.timerex.net/wp-content/themes/TimeRex-Developers-Portal/assets/images/common/favicon/favicon-32x32.png">
+	<link rel="icon" type="image/png" sizes="16x16" href="https://developers.timerex.net/wp-content/themes/TimeRex-Developers-Portal/assets/images/common/favicon/favicon-16x16.png">
+	<link rel="manifest" href="https://developers.timerex.net/wp-content/themes/TimeRex-Developers-Portal/assets/images/common/favicon/site.webmanifest">
+	<link rel="mask-icon" href="https://developers.timerex.net/wp-content/themes/TimeRex-Developers-Portal/assets/images/common/favicon/safari-pinned-tab.svg" color="#26a69a">
+	<meta name="msapplication-TileColor" content="#26a69a">
+	<meta name="theme-color" content="#ffffff">
+</head>
+
+<body class="wp-singular page-template page-template-page-overview page-template-page-overview-php page page-id-69 page-parent wp-theme-TimeRex-Developers-Portal" id="error-page">
+
+	<header>
+		<div class="container">
+			<a class="logo" href="https://developers.timerex.net/ja/"><img src="https://developers.timerex.net/wp-content/themes/TimeRex-Developers-Portal/assets/images/common/timerex_developer_portal_logo.svg" alt="TimeRex Developer Portal"></a>
+			<div class="header-menu">
+				<div id="sp_menu_global_bg">
+					<div class="menu-global-ja-container"><ul id="menu-global-ja" class="menu"><li id="menu-item-134" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-134"><a href="https://developers.timerex.net/ja/api/">日程調整API</a></li>
+<li id="menu-item-103" class="menu-item menu-item-type-post_type menu-item-object-page current-menu-item page_item page-item-69 current_page_item menu-item-103"><a href="https://developers.timerex.net/ja/widget/" aria-current="page">日程調整ウィジェット</a></li>
+<li id="menu-item-102" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-102"><a href="https://developers.timerex.net/ja/webhook/">Webhook</a></li>
+</ul></div>				</div>
+				<button id="sp_menu_button" onclick="spMenuButtonClick()">
+					<svg class="bars" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512">
+						<!--! Font Awesome Pro 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2022 Fonticons, Inc. -->
+						<path d="M0 88C0 74.75 10.75 64 24 64H424C437.3 64 448 74.75 448 88C448 101.3 437.3 112 424 112H24C10.75 112 0 101.3 0 88zM0 248C0 234.7 10.75 224 24 224H424C437.3 224 448 234.7 448 248C448 261.3 437.3 272 424 272H24C10.75 272 0 261.3 0 248zM424 432H24C10.75 432 0 421.3 0 408C0 394.7 10.75 384 24 384H424C437.3 384 448 394.7 448 408C448 421.3 437.3 432 424 432z"></path>
+					</svg>
+					<svg class="xmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512">
+						<!--! Font Awesome Pro 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2022 Fonticons, Inc. -->
+						<path d="M312.1 375c9.369 9.369 9.369 24.57 0 33.94s-24.57 9.369-33.94 0L160 289.9l-119 119c-9.369 9.369-24.57 9.369-33.94 0s-9.369-24.57 0-33.94L126.1 256L7.027 136.1c-9.369-9.369-9.369-24.57 0-33.94s24.57-9.369 33.94 0L160 222.1l119-119c9.369-9.369 24.57-9.369 33.94 0s9.369 24.57 0 33.94L193.9 256L312.1 375z"></path>
+					</svg>
+				</button>
+			</div>
+		</div>
+	</header>
+	<div class="main-content">
+        <div class="overview-header">
+            <div class="container">
+                <h1>日程調整ウィジェット</h1>
+                <p class="description">TimeRexの日程調整ウィジェットをWebサイトに追加すれば、あなたのWebサイト上であなたの顧客と日程調整できます。日程調整ウィジェットはカスタマイズすることもできます。</p>
+            </div>
+        </div>
+        <div class="breadcrumb-list-section">
+            <div class="container">
+                <ul class="breadcrumb-list">
+                    <li class="breadcrumb-list-item"><a href="/">Top</a></li>
+                    <li class="breadcrumb-list-item">日程調整ウィジェット</li>
+                </ul>
+            </div>
+        </div>
+        <div class="content-section">
+            <div class="container">
+                <div class="content">
+                    
+<h2 class="wp-block-heading">日程調整ウィジェットについて</h2>
+
+
+
+<p>日程調整カレンダーウィジェットを利用すると、WebサイトにTimeRexの日程調整カレンダーを埋め込むことができ、Webサイト上で日程調整ができるようになります。</p>
+
+
+
+<h2 class="wp-block-heading">はじめる</h2>
+
+
+
+<p>日程調整カレンダーの設定確認ページの「日程調整カレンダーの埋め込み」に表示されるコードをWebサイトのBodyタグ内に追加すると、Webサイトに日程調整カレンダーを埋め込むことができます。</p>
+
+
+
+<p>一部のスタイルは埋め込み先のサイトにあわせてカスタマイズすることができます。</p>
+
+
+
+<p>詳しくはリファレンスをご確認ください。</p>
+
+
+
+<h2 class="wp-block-heading">リファレンス</h2>
+
+
+
+<p><a href="/ja/widget/nreference">日程調整ウィジェットリファレンス</a></p>
+  
+                </div>
+                <div class="side-menu">
+                    <h2>関連コンテンツ</h2>
+                    <ul class="related-content">
+                        <li class="related-content-item"><a class="menu-item-reference" href="https://developers.timerex.net/ja/api/reference/">日程調整APIリファレンス</a></li>
+                        <li class="related-content-item"><a class="menu-item-reference" href="https://developers.timerex.net/ja/widget/nreference/">ウィジェットリファレンス</a></li>
+                        <li class="related-content-item"><a class="menu-item-reference" href="https://developers.timerex.net/ja/webhook/reference/">Webhookリファレンス</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+	</div>
+
+<footer>
+    <div class="container">
+        <div class="footer-company">
+            <a href="https://mixtend.com/" target="_blank">
+                <img class="mixtend-logo" src="https://developers.timerex.net/wp-content/themes/TimeRex-Developers-Portal/assets/images/common/mixtend-logo.svg" alt="MIXTEND"></a>
+        </div>
+        <div class="footer-timerex">
+            <div class="menu-footer-ja-container"><ul id="menu-footer-ja" class="menu"><li id="menu-item-42" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-42"><a href="https://timerex.net/">TimeRex</a></li>
+<li id="menu-item-43" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-43"><a href="https://status.timerex.net/">ステータス</a></li>
+<li id="menu-item-44" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-44"><a href="https://support.timerex.net/">サポート</a></li>
+</ul></div>        </div>
+        <div class="footer-language">
+            
+
+
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<meta name="robots" content="noindex, follow">
+	<title>WordPress › エラー</title>
+	<style type="text/css">
+		html {
+			background: #f1f1f1;
+		}
+		body {
+			background: #fff;
+			border: 1px solid #ccd0d4;
+			color: #444;
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+			margin: 2em auto;
+			padding: 1em 2em;
+			max-width: 700px;
+			-webkit-box-shadow: 0 1px 1px rgba(0, 0, 0, .04);
+			box-shadow: 0 1px 1px rgba(0, 0, 0, .04);
+		}
+		h1 {
+			border-bottom: 1px solid #dadada;
+			clear: both;
+			color: #666;
+			font-size: 24px;
+			margin: 30px 0 0 0;
+			padding: 0;
+			padding-bottom: 7px;
+		}
+		#error-page {
+			margin-top: 50px;
+		}
+		#error-page p,
+		#error-page .wp-die-message {
+			font-size: 14px;
+			line-height: 1.5;
+			margin: 25px 0 20px;
+		}
+		#error-page code {
+			font-family: Consolas, Monaco, monospace;
+		}
+		ul li {
+			margin-bottom: 10px;
+			font-size: 14px ;
+		}
+		a {
+			color: #2271b1;
+		}
+		a:hover,
+		a:active {
+			color: #135e96;
+		}
+		a:focus {
+			color: #043959;
+			box-shadow: 0 0 0 2px #2271b1;
+			outline: 2px solid transparent;
+		}
+		.button {
+			background: #f3f5f6;
+			border: 1px solid #016087;
+			color: #016087;
+			display: inline-block;
+			text-decoration: none;
+			font-size: 13px;
+			line-height: 2;
+			height: 28px;
+			margin: 0;
+			padding: 0 10px 1px;
+			cursor: pointer;
+			-webkit-border-radius: 3px;
+			-webkit-appearance: none;
+			border-radius: 3px;
+			white-space: nowrap;
+			-webkit-box-sizing: border-box;
+			-moz-box-sizing:    border-box;
+			box-sizing:         border-box;
+
+			vertical-align: top;
+		}
+
+		.button.button-large {
+			line-height: 2.30769231;
+			min-height: 32px;
+			padding: 0 12px;
+		}
+
+		.button:hover,
+		.button:focus {
+			background: #f1f1f1;
+		}
+
+		.button:focus {
+			background: #f3f5f6;
+			border-color: #007cba;
+			-webkit-box-shadow: 0 0 0 1px #007cba;
+			box-shadow: 0 0 0 1px #007cba;
+			color: #016087;
+			outline: 2px solid transparent;
+			outline-offset: 0;
+		}
+
+		.button:active {
+			background: #f3f5f6;
+			border-color: #7e8993;
+			-webkit-box-shadow: none;
+			box-shadow: none;
+		}
+
+			</style>
+
+
+	<div class="wp-die-message"><p>このサイトで重大なエラーが発生しました。</p><p><a href="https://ja.wordpress.org/support/article/faq-troubleshooting/">WordPress のトラブルシューティングについてはこちらをご覧ください。</a></p></div>
+
+	</div></div></footer></body></html>

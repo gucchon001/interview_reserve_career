@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>面談予約 | エージェント日程調整</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Vue 3 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+  <!-- Phosphor Icons (アイコン用) -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <style>
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+      background-color: #F3F4F6;
+      -webkit-font-smoothing: antialiased;
+    }
+    .fade-enter-active,
+    .fade-leave-active {
+      transition: opacity 0.5s ease;
+    }
+    .fade-enter-from,
+    .fade-leave-to {
+      opacity: 0;
+    }
+    /* iframeのスクロールバー制御 */
+    iframe {
+      border: none;
+      width: 100%;
+      height: 100%;
+    }
+    .safe-area-bottom {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+  </style>
+</head>
+<body>
+  <div id="app" class="min-h-screen flex flex-col relative safe-area-bottom">
+
+    <!-- ヘッダー (シンプルに信頼感を) -->
+    <header class="bg-white shadow-sm sticky top-0 z-20">
+      <div class="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="bg-green-500 text-white p-1 rounded-md">
+            <i class="ph-bold ph-calendar-check text-xl"></i>
+          </div>
+          <h1 class="font-bold text-gray-800 text-sm md:text-base">面談予約システム</h1>
+        </div>
+        <!-- お問い合わせボタン（LINEに戻るイメージ） -->
+        <button class="text-xs text-gray-500 hover:text-green-600 flex items-center gap-1 transition">
+          <i class="ph-fill ph-chat-circle-dots"></i>
+          <span>お問い合わせ</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="flex-1 w-full max-w-2xl mx-auto p-4 md:p-6 flex flex-col gap-6">
+
+      <!-- ウェルカムメッセージカード -->
+      <section class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 relative overflow-hidden">
+        <!-- 装飾背景 -->
+        <div class="absolute top-0 right-0 w-24 h-24 bg-green-50 rounded-bl-full -mr-4 -mt-4 z-0"></div>
+        
+        <div class="relative z-10 flex items-start gap-4">
+          <!-- ユーザーアイコン（LINE風） -->
+          <div class="flex-shrink-0">
+            <div class="w-12 h-12 rounded-full bg-gray-200 border-2 border-white shadow-sm flex items-center justify-center overflow-hidden">
+              <i class="ph-fill ph-user text-2xl text-gray-400" v-if="!userImage"></i>
+              <img :src="userImage" v-else class="w-full h-full object-cover">
+            </div>
+          </div>
+          
+          <div>
+            <p class="text-xs text-gray-500 font-medium mb-1">ようこそ</p>
+            <h2 class="text-lg font-bold text-gray-800 leading-tight mb-2">
+              <span class="text-green-600">{{ userName }}</span> 様
+            </h2>
+            <p class="text-sm text-gray-600 leading-relaxed">
+              以下のカレンダーから、ご都合の良い日時を選択してください。<br>
+              <span class="text-xs text-gray-400 mt-1 block">※所要時間は約30分〜60分です。</span>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- カレンダーエリア -->
+      <section class="flex-1 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden relative flex flex-col min-h-[600px]">
+        
+        <!-- ヘッダー -->
+        <div class="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+          <h3 class="font-bold text-gray-700 text-sm flex items-center gap-2">
+            <i class="ph-fill ph-clock text-green-500"></i>
+            日程選択
+          </h3>
+          <span class="text-xs text-gray-400 bg-white px-2 py-1 rounded border border-gray-200">
+            {{ interviewerName }}
+          </span>
+        </div>
+
+        <!-- iframe コンテナ -->
+        <div class="relative flex-1 bg-white w-full h-full">
+          
+          <!-- ローディングスケルトン (iframe読み込み中に表示) -->
+          <transition name="fade">
+            <div v-if="loading" class="absolute inset-0 z-10 p-4 space-y-4 bg-white">
+              <div class="animate-pulse flex flex-col gap-4 h-full">
+                <!-- カレンダーヘッダー風 -->
+                <div class="flex justify-between items-center mb-4">
+                  <div class="h-8 bg-gray-200 rounded w-1/3"></div>
+                  <div class="h-8 bg-gray-200 rounded w-1/4"></div>
+                </div>
+                <!-- 日付グリッド風 -->
+                <div class="grid grid-cols-7 gap-2">
+                  <div v-for="n in 7" :key="n" class="h-6 bg-gray-100 rounded"></div>
+                </div>
+                <div class="grid grid-cols-7 gap-2 flex-1">
+                  <div v-for="n in 28" :key="n" class="h-full bg-gray-50 rounded border border-gray-100"></div>
+                </div>
+                <!-- ローディングテキスト -->
+                <div class="absolute inset-0 flex flex-col items-center justify-center">
+                  <div class="w-10 h-10 border-4 border-green-200 border-t-green-500 rounded-full animate-spin mb-3"></div>
+                  <p class="text-sm text-gray-500 font-medium">カレンダーを読み込んでいます...</p>
+                </div>
+              </div>
+            </div>
+          </transition>
+
+          <!-- 実際のTimeRex iframe (モック用にダミーURLを設定中) -->
+          <!-- 本番では :src="timerexUrl" を使います -->
+          <iframe 
+            ref="timerexFrame"
+            src="about:blank" 
+            @load="onFrameLoad"
+            class="w-full h-full transition-opacity duration-500"
+            :class="{ 'opacity-0': loading, 'opacity-100': !loading }"
+          ></iframe>
+
+          <!-- モック用: iframeが空なのでダミー画像を表示するエリア (実際は不要) -->
+          <div v-if="!loading && isMock" class="absolute inset-0 flex items-center justify-center bg-gray-50 pointer-events-none">
+             <div class="text-center p-6">
+               <img src="https://placehold.co/600x400/png?text=TimeRex+Calendar+View" class="max-w-full rounded shadow-sm mb-4 opacity-50">
+               <p class="text-sm text-gray-500">ここにTimeRexのカレンダーが表示されます</p>
+             </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- 注意書き -->
+      <section class="text-center pb-8">
+        <p class="text-xs text-gray-400">
+          日程が表示されない場合は、<br>
+          <a href="#" class="text-green-600 underline">ブラウザで開く</a> をお試しください。
+        </p>
+      </section>
+
+    </main>
+  </div>
+
+  <script>
+    const { createApp, ref, onMounted } = Vue;
+
+    createApp({
+      setup() {
+        // ==============================================
+        // GASから受け取る変数のモック (本番は <?= var ?> に置換)
+        // ==============================================
+        const uid = ref('U1234567890abcdef');
+        const userName = ref('山田 太郎');
+        const userEmail = ref('yamada@example.com');
+        const userImage = ref(''); // プロフ画像URLがあれば
+        const timerexBaseUrl = ref('https://timerex.net/s/your-team/config-id');
+        
+        // 画面状態
+        const loading = ref(true);
+        const isMock = ref(true); // モック確認用フラグ
+        const interviewerName = ref('採用担当チーム'); // 担当者名表示用
+
+        // iframeのURL構築
+        const timerexUrl = ref('');
+
+        onMounted(() => {
+          // URLパラメータ構築ロジック
+          const params = new URLSearchParams();
+          if (userName.value) params.append('name', userName.value);
+          if (userEmail.value) params.append('email', userEmail.value);
+          if (uid.value) params.append('1', uid.value); // 設問ID
+
+          // TimeRex URLセット
+          timerexUrl.value = `${timerexBaseUrl.value}?${params.toString()}`;
+          
+          // モック用: 実際のiframeロードをシミュレート
+          const iframe = document.querySelector('iframe');
+          // 本番ではここで iframe.src = timerexUrl.value; を実行
+          
+          // 擬似的にロード完了させる (2秒後)
+          setTimeout(() => {
+            loading.value = false;
+          }, 2000);
+        });
+
+        const onFrameLoad = () => {
+          // 本番環境ではiframeのonloadイベントでloadingをfalseにする
+          // loading.value = false;
+        };
+
+        return {
+          userName,
+          userImage,
+          interviewerName,
+          loading,
+          timerexUrl,
+          onFrameLoad,
+          isMock
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
