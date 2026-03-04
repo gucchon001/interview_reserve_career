@@ -67,6 +67,31 @@ const Utils = {
   },
 
   /**
+   * L-step の postback.data から friend_id を抽出する。
+   * 1) JSON の friend_id キーがあればそれを返す。
+   * 2) なければ flex_code 内の _9桁数値_ を友だちIDとみなして返す（例: flex_bubble9063281217d48f13_239639916_pdvety → 239639916）。
+   * @param {string} dataStr - postback.data の文字列（JSON または任意）
+   * @return {string} friend_id。取得できない場合は ''
+   */
+  extractFriendIdFromPostbackData(dataStr) {
+    if (!dataStr || typeof dataStr !== 'string') return '';
+    const s = dataStr.trim();
+    if (!s) return '';
+    try {
+      const pb = typeof s === 'string' && s.startsWith('{') ? JSON.parse(s) : null;
+      if (pb && typeof pb === 'object') {
+        if (pb.friend_id != null && String(pb.friend_id).trim() !== '') return String(pb.friend_id).trim();
+        const flexCode = (pb.flex_code || pb.flexCode || '').toString();
+        if (flexCode) {
+          const m = flexCode.match(/_(\d{9})_/);
+          if (m && m[1]) return m[1];
+        }
+      }
+    } catch (_) { /* JSON でない場合は無視 */ }
+    return '';
+  },
+
+  /**
    * 必須フィールドの検証
    * @param {Object} obj - 検証するオブジェクト
    * @param {string[]} requiredFields - 必須フィールド名の配列
@@ -130,17 +155,24 @@ const Utils = {
   },
 
   /**
-   * url_params配列から指定されたキーの値を取得
-   * @param {Array} urlParamsArray - url_params配列
+   * url_params（配列またはオブジェクト）から指定されたキーの値を取得
+   * TimeRexは配列 [ { line_uid: "U..." } ] またはオブジェクト { line_uid: "U..." } のどちらかで返す場合がある
+   * @param {Array|Object} urlParamsArray - url_params（配列またはオブジェクト）
    * @param {string} key - 取得するキー
    * @return {string} 値（見つからない場合は空文字列）
    */
   getUrlParamValue(urlParamsArray, key) {
-    if (!Array.isArray(urlParamsArray)) {
+    if (urlParamsArray == null) {
       return '';
     }
-    const param = urlParamsArray.find(p => p[key] !== undefined);
-    return param ? String(param[key]) : '';
+    if (Array.isArray(urlParamsArray)) {
+      const param = urlParamsArray.find(p => p && p[key] !== undefined);
+      return param ? String(param[key]) : '';
+    }
+    if (typeof urlParamsArray === 'object' && urlParamsArray[key] !== undefined) {
+      return String(urlParamsArray[key]);
+    }
+    return '';
   },
 
   /**
@@ -245,6 +277,22 @@ const Utils = {
     return interviewers.find(i => 
       i.googleCalendarId && i.googleCalendarId.toLowerCase() === email.toLowerCase()
     ) || null;
+  },
+
+  /**
+   * 管理者ページのURLを組み立てる（Slack通知などで使用）
+   * @param {string} [interviewerId] - 面談官ID（指定時はその面談官のカレンダー表示用）
+   * @return {string} 管理者ページのURL。Config.BOOKING_BASE_URL が未設定の場合は空文字
+   */
+  getAdminPageUrl(interviewerId) {
+    const base = (Config.BOOKING_BASE_URL && Config.BOOKING_BASE_URL.trim()) || '';
+    if (!base) return '';
+    const sep = base.indexOf('?') >= 0 ? '&' : '?';
+    let url = base.replace(/\?.*$/, '') + sep + 'page=admin';
+    if (interviewerId && String(interviewerId).trim()) {
+      url += '&interviewer_id=' + encodeURIComponent(String(interviewerId).trim());
+    }
+    return url;
   }
 };
 

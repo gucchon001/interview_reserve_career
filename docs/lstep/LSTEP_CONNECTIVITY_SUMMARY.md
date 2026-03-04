@@ -81,9 +81,35 @@ python connectivity_test.py
 
 ---
 
-## 6. 関連ドキュメント
+## 6. GET/POST で URL を分ける場合（方法1：共有スプレッドシート）
 
-- [API疎通テスト手順](API_CONNECTIVITY_TEST.md)
+Webhook 転送（POST）とユーザーがクリックするリンク（GET）で **別々のデプロイURL** を使う場合、両方の GAS が **同じ uidlog** を参照する必要がある。同一のスプレッドシートを参照すれば、POST で保存したセッションを GET 側で取得できる。
+
+### 6.1 共有するスプレッドシート ID
+
+| 用途 | 値 |
+|------|-----|
+| **SPREADSHEET_ID**（両方の GAS で共通） | `1B3veDjAYnEP42XR2nxRa-TLDR8XaQ1xtx4BKxV6AZoA` |
+
+### 6.2 設定手順（GET 側の GAS）
+
+ユーザーがクリックするリンクを返す方の GAS プロジェクトで、以下を実施する。
+
+1. GAS エディタでそのプロジェクトを開く。
+2. **プロジェクトの設定**（歯車アイコン）→ **スクリプトプロパティ** を開く。
+3. プロパティ **`SPREADSHEET_ID`** を追加または編集し、値を **`1B3veDjAYnEP42XR2nxRa-TLDR8XaQ1xtx4BKxV6AZoA`** に設定する。
+4. 保存する。
+
+POST 側（Webhook 転送を受ける方）の GAS も、同じ `SPREADSHEET_ID` を参照していることを確認する。これで uidlog が共有され、ボタンタップ後にユーザーが GET 用 URL をクリックすると「セッションが見つかりません」にならずに予約画面へリダイレクトされる。
+
+**メッセージ内のURL:** ユーザーがクリックするリンクは `?action=lstep_webhook` ではなく **`?from=line`** を推奨。`?from=line` にするとモバイル表示になりやすい（例: `https://.../exec?from=line`。必要なら `&interviewer_id=xxx` を付与）。
+
+---
+
+## 7. 関連ドキュメント
+
+- [L-step API 設定ガイド](LSTEP_API_SETUP_GUIDE.md) — TimeRex 予約時のタグ付与のための L-step 管理画面設定手順
+- [API疎通テスト手順](../operations/API_CONNECTIVITY_TEST.md)
 - [L-step Webhook転送仕様](LSTEP_WEBHOOK_SPEC.md)
 - [L-step UID取得実装照合](LSTEP_UID_ACQUISITION_VERIFICATION.md)
 - [L-step API連携マニュアル](lstep_api_manual.md)

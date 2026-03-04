@@ -345,6 +345,68 @@ function runWebhookTokenTest() {
 }
 
 /**
+ * Slack Webhook URL（SLACK_WEBHOOK_URL）のスクリプトプロパティ確認とテスト送信
+ * 実行: エディタで runSlackWebhookTest を選択して実行
+ * 事前に「スクリプトのプロパティ」に SLACK_WEBHOOK_URL を設定してください。
+ * @param {boolean} [sendTestMessage=true] - true のときテスト通知をSlackに送信する。false のときはプロパティ確認のみ
+ * @return {boolean} プロパティが設定され、（送信する場合）送信が成功したら true
+ */
+function runSlackWebhookTest(sendTestMessage) {
+  Logger.log('=== Slack Webhook（SLACK_WEBHOOK_URL）テスト ===');
+  Logger.log('');
+
+  try {
+    const url = SlackService.getWebhookUrl();
+    if (!url) {
+      Logger.log('✗ SLACK_WEBHOOK_URL がスクリプトプロパティに設定されていません');
+      Logger.log('  設定手順: エディタ → プロジェクトの設定 → スクリプトのプロパティ → プロパティを追加');
+      Logger.log('  キー: SLACK_WEBHOOK_URL');
+      Logger.log('  値: https://hooks.slack.com/services/... （SlackのIncoming Webhook URL）');
+      return false;
+    }
+    Logger.log('✓ SLACK_WEBHOOK_URL が設定されています');
+    Logger.log(`  先頭: ${url.substring(0, 40)}...`);
+    Logger.log('');
+
+    const doSend = sendTestMessage !== false;
+    if (!doSend) {
+      Logger.log('（テスト送信はスキップしました。送信する場合は runSlackWebhookTest(true) を実行）');
+      return true;
+    }
+
+    Logger.log('→ テスト通知（予約作成）を送信します...');
+    SlackService.notifyBookingCreated({
+      candidateName: '【テスト】予約者',
+      dateTime: new Date().toISOString(),
+      interviewerName: 'テスト面談者',
+      interviewerEmail: '',
+      interviewerSlackMemberId: '', // メンション確認する場合は interviewers の SLACK_MEMBER_ID を指定可
+      adminPageUrl: Utils.getAdminPageUrl('')
+    });
+    Logger.log('✓ 予約作成テスト通知の送信が完了しました。Slackチャンネルを確認してください。');
+    Logger.log('');
+
+    Logger.log('→ テスト通知（予約キャンセル）を送信します...');
+    SlackService.notifyBookingCancelled({
+      candidateName: '【テスト】予約者',
+      dateTime: new Date().toISOString(),
+      interviewerName: 'テスト面談者',
+      interviewerEmail: '',
+      interviewerSlackMemberId: '',
+      adminPageUrl: Utils.getAdminPageUrl('')
+    });
+    Logger.log('✓ 予約キャンセルテスト通知の送信が完了しました。');
+    Logger.log('');
+    Logger.log('=== Slack Webhook テスト完了 ===');
+    return true;
+  } catch (error) {
+    Logger.log(`✗ エラー: ${error.toString()}`);
+    Utils.logError('runSlackWebhookTest', error);
+    return false;
+  }
+}
+
+/**
  * Google Calendar API疎通確認テスト
  * 
  * 注意: 初回実行時はGoogleアカウントの認証が必要です
@@ -1169,6 +1231,32 @@ function runBookingPageTest() {
     Logger.log(`✗ テストエラー: ${error.toString()}`);
     Utils.logError('runBookingPageTest', error);
     return false;
+  }
+}
+
+/**
+ * 取得しているTimeRexカレンダー（テーブル）を表示
+ * 管理画面と同じく getTimeRexCalendarConfig(null) で統合カレンダー情報を取得してログ出力
+ * 実行: エディタで runTimeRexCalendarConfigDisplay を選択して実行
+ */
+function runTimeRexCalendarConfigDisplay() {
+  Logger.log('=== 取得しているTimeRexカレンダー ===');
+  Logger.log('');
+  try {
+    const config = getTimeRexCalendarConfig(null);
+    if (!config) {
+      Logger.log('✗ TimeRexカレンダーが設定されていません（TIMEREX_TEAM_URL_PATH / TIMEREX_TEAM_CALENDAR_URL_PATH を確認）');
+      return;
+    }
+    Logger.log('チームURLパス: ' + config.teamUrlPath);
+    Logger.log('カレンダーURLパス: ' + config.calendarUrlPath);
+    Logger.log('表示名: ' + (config.label || '統合カレンダー'));
+    Logger.log('URL: ' + config.calendarUrl);
+    Logger.log('');
+    Logger.log('※ 予約ウィジェット・Webhookはこのカレンダーテーブルを参照しています。');
+  } catch (e) {
+    Logger.log('✗ エラー: ' + e.toString());
+    Utils.logError('runTimeRexCalendarConfigDisplay', e);
   }
 }
 
@@ -2139,16 +2227,20 @@ function runSessionManagementTest() {
       }
       Logger.log(`✓ uidlogシートを作成または取得しました: ${uidlogSheet.getName()}`);
       
-      // ヘッダー行の確認
-      const headerRange = uidlogSheet.getRange(1, 1, 1, 4);
-      const headers = headerRange.getValues()[0];
-      const expectedHeaders = ['日時', 'uid', 'sessionid', 'イベント種別'];
-      
-      if (JSON.stringify(headers) === JSON.stringify(expectedHeaders)) {
-        Logger.log('✓ ヘッダー行が正しく設定されています');
+      // ヘッダー行の確認（最低4列。新規作成時は5列で friendid あり）
+      const headerRange = uidlogSheet.getRange(1, 1, 1, Math.max(5, uidlogSheet.getLastColumn() || 5));
+      const headers = headerRange.getValues()[0] || [];
+      const expectedMin = ['日時', 'uid', 'sessionid', 'イベント種別'];
+      const hasMin = expectedMin.every((h, i) => (headers[i] || '').toString().trim() === h);
+      const hasFriendid = (headers[4] || '').toString().trim() === 'friendid';
+
+      if (hasMin && hasFriendid) {
+        Logger.log('✓ ヘッダー行が正しく設定されています（5列: friendid 含む）');
+      } else if (hasMin) {
+        Logger.log('⚠ ヘッダーは4列です（既存シートのため friendid 列は手動追加可）');
       } else {
         Logger.log('⚠ ヘッダー行が期待値と異なります');
-        Logger.log(`  期待値: ${expectedHeaders.join(', ')}`);
+        Logger.log(`  期待値（最小）: ${expectedMin.join(', ')}`);
         Logger.log(`  実際の値: ${headers.join(', ')}`);
       }
       Logger.log('');
@@ -2161,20 +2253,20 @@ function runSessionManagementTest() {
     Logger.log('--- 2. uidlog保存テスト ---');
     try {
       const saved = SpreadsheetService.saveToUidlog(testUid, testSessionId, 'postback');
-      
+
       if (!saved) {
         Logger.log('✗ uidlogへの保存に失敗しました');
         return false;
       }
-      
+
       Logger.log('✓ uidlogに保存しました');
-      
+
       // 保存されたデータを確認
       const uidlogSheet = SpreadsheetService.getSheet(Config.SHEET_NAMES.UIDLOG);
       const dataRange = uidlogSheet.getDataRange();
       const values = dataRange.getValues();
-      
-      // 最後の行を確認（新しく追加された行）
+
+      // 最後の行を確認（新しく追加された行）。5列目（friendid）は省略時は空
       const lastRow = values[values.length - 1];
       if ((lastRow[1] || '').toString().trim() === testUid && (lastRow[2] || '').toString().trim() === testSessionId) {
         Logger.log('✓ 保存されたデータが正しいことを確認しました');
@@ -2182,11 +2274,24 @@ function runSessionManagementTest() {
         Logger.log(`  uid: ${lastRow[1]}`);
         Logger.log(`  sessionid: ${lastRow[2]}`);
         Logger.log(`  イベント種別: ${lastRow[3]}`);
+        Logger.log(`  friendid: ${(lastRow[4] || '').toString() || '(空)'}`);
       } else {
         Logger.log('✗ 保存されたデータが期待値と異なります');
         Logger.log(`  期待値: uid=${testUid}, sessionid=${testSessionId}`);
         Logger.log(`  実際の値: uid=${lastRow[1]}, sessionid=${lastRow[2]}`);
         return false;
+      }
+
+      // friendId 付きで保存できることを確認
+      const testFriendId = '204179348';
+      const extraSessionId = Utilities.getUuid();
+      const savedWithFriendId = SpreadsheetService.saveToUidlog(testUid, extraSessionId, 'test', testFriendId);
+      if (savedWithFriendId) {
+        const dataRange2 = uidlogSheet.getDataRange();
+        const lastRow2 = dataRange2.getValues().pop();
+        if ((lastRow2[4] || '').toString().trim() === testFriendId) {
+          Logger.log(`✓ friendid 付き保存を確認しました: friendid=${testFriendId}`);
+        }
       }
       Logger.log('');
     } catch (error) {
@@ -2484,6 +2589,185 @@ function runLStepWebhookMockTest() {
   } catch (error) {
     Logger.log(`✗ テスト実行エラー: ${error.toString()}`);
     Utils.logError('runLStepWebhookMockTest', error);
+    return false;
+  }
+}
+
+/**
+ * L-step session_id → 予約画面テスト（interviewer_id なし）
+ * 「L-step POST → uidlog に保存 → GET ?from=line で直近セッションを取得し、予約画面（uid 付き）が返るか」を検証する。
+ *
+ * @return {boolean} テストが成功した場合 true
+ */
+function runLStepSessionIdRedirectWithoutInterviewerIdTest() {
+  Logger.log('=== L-step session_id → 予約画面テスト（interviewer_id なし） ===');
+  Logger.log('');
+
+  try {
+    const mockUid = 'U_SESSION_REDIRECT_TEST_' + Date.now();
+    const mockPayload = {
+      events: [{ source: { userId: mockUid } }]
+    };
+    const mockRequest = {
+      parameter: {},
+      postData: { contents: JSON.stringify(mockPayload), type: 'application/json' }
+    };
+
+    Logger.log('--- 1. L-step Webhook 受信をシミュレート（handleLStepWebhook） ---');
+    const result = handleLStepWebhook(mockRequest);
+    if (!result) {
+      Logger.log('✗ handleLStepWebhook が null を返しました');
+      return false;
+    }
+    Logger.log('✓ handleLStepWebhook でセッションを作成しました');
+
+    Logger.log('--- 2. GET ?from=line で予約画面を取得 ---');
+    const getResult = doGet({ parameter: { from: 'line' } });
+    if (!getResult) {
+      Logger.log('✗ doGet が null を返しました');
+      return false;
+    }
+    const html = getResult.getContent();
+
+    Logger.log('--- 3. 返された予約画面に uid が含まれるか確認 ---');
+    if (!html.includes(mockUid)) {
+      Logger.log('✗ 予約画面HTMLに uid が含まれていません（session_id → uid の復元ができていない）');
+      Logger.log('   HTML preview: ' + html.substring(0, 400) + '...');
+      return false;
+    }
+    Logger.log('✓ 直近セッションの uid が予約画面に渡されています');
+    Logger.log('');
+    Logger.log('=== テスト結果: 成功 ===');
+    return true;
+  } catch (error) {
+    Logger.log('✗ テストエラー: ' + error.toString());
+    Logger.log(error.stack || '');
+    Utils.logError('runLStepSessionIdRedirectWithoutInterviewerIdTest', error);
+    return false;
+  }
+}
+
+/**
+ * 個別面談者（interviewer_id）指定で予約画面が正しく表示されるかテスト
+ * handleBookingPage に interviewer_id を渡し、個別カレンダー用URLが返る（または適切なエラーが出る）ことを検証する。
+ *
+ * @param {string} [interviewerId] - 面談官ID。省略時は 'y_haraguchi'
+ * @return {boolean} テストが成功した場合 true（面談官が存在し timerex_config_id が設定されていれば成功）
+ */
+function runBookingPageWithInterviewerIdTest(interviewerId) {
+  const id = (interviewerId || 'y_haraguchi').toString().trim();
+  Logger.log('=== 個別面談者（interviewer_id）予約画面テスト ===');
+  Logger.log(`  対象面談官ID: ${id}`);
+  Logger.log('');
+
+  try {
+    const testUid = 'U_BOOKING_INTERVIEWER_TEST_' + Date.now();
+    const e = { parameter: { interviewer_id: id, uid: testUid } };
+
+    Logger.log('--- 1. 面談官の存在確認 ---');
+    const interviewer = SpreadsheetService.getInterviewerById(id);
+    if (!interviewer) {
+      Logger.log(`✗ 面談官ID「${id}」が interviewers シートに存在しません`);
+      Logger.log('  interviewers シートに id 列（A列）で該当の面談官を登録してください。');
+      Logger.log('  例: y_haraguchi, 原口陽一郎, timerex_config_id, google_calendar_id, priority');
+      return false;
+    }
+    Logger.log(`✓ 面談官: ${interviewer.name} (id: ${interviewer.id})`);
+
+    Logger.log('--- 2. handleBookingPage(interviewer_id) で予約画面HTMLを取得 ---');
+    const result = handleBookingPage(e);
+    if (!result) {
+      Logger.log('✗ handleBookingPage が null を返しました');
+      return false;
+    }
+    const html = result.getContent();
+    Logger.log('✓ 予約画面HTMLを取得しました');
+
+    Logger.log('--- 3. エラーメッセージの有無を確認 ---');
+    const notFoundMsg = `面談官ID（${id}）が見つかりません`;
+    const notConfiguredMsg = 'TimeRex設定が完了していません';
+    if (html.indexOf(notFoundMsg) !== -1) {
+      Logger.log(`✗ HTMLに「${notFoundMsg}」が含まれています（getInterviewerById と handleBookingPage の不整合の可能性）`);
+      return false;
+    }
+    if (html.indexOf(notConfiguredMsg) !== -1) {
+      Logger.log(`✗ 面談官「${interviewer.name}」のTimeRex個別カレンダーが未設定です`);
+      Logger.log('  interviewers シートの timerex_config_id 列（C列）に、該当面談官用の TimeRex カレンダーURLパスを設定してください。');
+      Logger.log('  手順: docs/setup/TIMEREX_SETUP.md の「個別カレンダー」を参照');
+      return false;
+    }
+    Logger.log('✓ エラーメッセージはありません');
+
+    Logger.log('--- 4. 個別カレンダーURL（timerex.net）が含まれるか確認 ---');
+    if (html.indexOf('timerex.net') === -1) {
+      Logger.log('✗ 予約画面HTMLに timerex.net のURLが含まれていません');
+      return false;
+    }
+    const expectedPath = interviewer.timerexConfigId || '';
+    if (expectedPath && html.indexOf(expectedPath) === -1) {
+      Logger.log(`✗ 個別カレンダー用のURLパス（${expectedPath}）がHTMLに含まれていません`);
+      return false;
+    }
+    Logger.log('✓ 個別カレンダー用のTimeRex URLが埋め込まれています');
+
+    Logger.log('');
+    Logger.log('=== テスト結果: 成功 ===');
+    Logger.log(`  個別面談者「${interviewer.name}」(id: ${id}) の予約画面が正しく表示されます。`);
+    return true;
+  } catch (error) {
+    Logger.log('✗ テストエラー: ' + error.toString());
+    Logger.log(error.stack || '');
+    Utils.logError('runBookingPageWithInterviewerIdTest', error);
+    return false;
+  }
+}
+
+/**
+ * session_id から uid を取得して予約画面に渡せるかテスト
+ * L-step フロー: セッション作成 → ?from=line で予約画面 → 画面に uid が埋め込まれることを検証
+ *
+ * @return {boolean} テストが成功した場合 true
+ */
+function runLStepSessionIdToUidTest() {
+  Logger.log('=== session_id から uid 取得テスト ===');
+  Logger.log('');
+
+  try {
+    const testSessionId = Utilities.getUuid();
+    const testUid = 'U_SESSION_TO_UID_TEST_' + Date.now();
+
+    Logger.log('--- 1. セッションを uidlog と CacheService に保存 ---');
+    const cache = CacheService.getScriptCache();
+    cache.put('uid_' + testSessionId, testUid, 600);
+    const saved = SpreadsheetService.saveToUidlog(testUid, testSessionId, 'test');
+    if (!saved) {
+      Logger.log('✗ uidlog への保存に失敗しました');
+      return false;
+    }
+    Logger.log(`✓ session_id: ${testSessionId}, uid: ${testUid}`);
+
+    Logger.log('--- 2. handleBookingPage(session_id) で予約画面HTMLを取得 ---');
+    const result = handleBookingPage({ parameter: { session_id: testSessionId } });
+    if (!result) {
+      Logger.log('✗ handleBookingPage が null を返しました');
+      return false;
+    }
+    const html = result.getContent();
+
+    Logger.log('--- 3. 返されたHTMLに uid が含まれるか確認 ---');
+    if (!html.includes(testUid)) {
+      Logger.log('✗ 予約画面HTMLに uid が含まれていません');
+      Logger.log('   userData 付近: ' + (html.match(/userData\s*=\s*\{[^}]+\}/) ? html.match(/userData\s*=\s*\{[^}]+\}/)[0].substring(0, 200) : '(not found)'));
+      return false;
+    }
+    Logger.log('✓ 予約画面に uid が正しく渡されています（TimeRex の line_uid に渡る前提）');
+    Logger.log('');
+    Logger.log('=== テスト結果: 成功 ===');
+    return true;
+  } catch (error) {
+    Logger.log('✗ テストエラー: ' + error.toString());
+    Logger.log(error.stack || '');
+    Utils.logError('runLStepSessionIdToUidTest', error);
     return false;
   }
 }
@@ -2885,6 +3169,348 @@ function runLStepApiTriggerTestForSpecifiedFriendId() {
   const triggerUrl = PropertiesService.getScriptProperties().getProperty(Config.PROPERTY_KEYS.LSTEP_TRIGGER_URL)
     || Config.LSTEP_TRIGGER_URL_DEFAULT || '';
   return runLStepApiTriggerTest(triggerUrl, '204179348', true);
+}
+
+/**
+ * 予約URL送信トリガー（LSTEP_BOOKING_LINK_TRIGGER_URL）のテスト。
+ * booking_url を埋め込んだメッセージが L-step から該当 UID に送られることを確認する。
+ * 事前に L-step でエンドポイント・パラメータ booking_url・連携アクション（メッセージ送信＋埋め込み）を設定し、
+ * GAS のスクリプトプロパティに LSTEP_BOOKING_LINK_TRIGGER_URL を設定すること。
+ * @param {string} [uid] - テストするLINEのUID。省略時は 'U6e967fdb7f0aaf99375946cad8744fad'
+ * @return {boolean} 2xx なら true
+ */
+function runLStepBookingLinkTriggerTest(uid) {
+  const testUid = (typeof uid === 'string' && uid.trim() !== '') ? uid.trim() : 'U6e967fdb7f0aaf99375946cad8744fad';
+  const testBookingUrl = (Config.BOOKING_BASE_URL && Config.BOOKING_BASE_URL.trim())
+    ? Config.BOOKING_BASE_URL.replace(/\/$/, '') + '?session_id=test-session-123&from=line'
+    : 'https://script.google.com/macros/s/' + ScriptApp.getScriptId() + '/exec?session_id=test-session-123&from=line';
+  Logger.log('=== Lステップ 予約URL送信トリガー テスト ===');
+  Logger.log('UID: ' + testUid);
+  Logger.log('booking_url: ' + testBookingUrl);
+  try {
+    LStepApiService.triggerBookingLinkMessage(testUid, testBookingUrl);
+    Logger.log('✓ 成功。該当 UID の LINE に「予約はこちら」等、booking_url が埋め込まれたメッセージが届いているか確認してください。');
+    return true;
+  } catch (e) {
+    Logger.log('✗ 失敗: ' + (e.message || e.toString()));
+    Logger.log('  LSTEP_BOOKING_LINK_TRIGGER_URL が設定されているか、L-step 側でエンドポイント・パラメータ booking_url・連携アクションを設定しているか確認してください。');
+    return false;
+  }
+}
+
+/**
+ * トリガーURLへ本番同様のペイロード（meeting_date, meeting_url, meeting_cancel_url, tag）でPOSTし、L-step でタグ・友だち情報が反映されるか確認するテスト。
+ * runLStepApiTriggerTest は uid のみ送るため「連携データからタグを追加」ではタグが付かない。本関数は本番と同じ4キーを送り、params に8キーが入ることを確認できる。
+ * @param {string} [uid] - テストするUID。省略時は runLStepApiTriggerTestForSpecifiedUid と同じサンプルUID
+ * @return {boolean} 2xx なら true
+ */
+function runLStepApiTriggerTestWithTag(uid) {
+  const testUid = (typeof uid === 'string' && uid.trim() !== '') ? uid.trim() : 'U6e967fdb7f0aaf99375946cad8744fad';
+  const tagName = Config.LSTEP_TAG_NAMES.BOOKING_CONFIRMED || '面談予約済み';
+  const meetingDate = '2026-02-15 20:00:00';
+  const meetingUrl = 'https://meet.google.com/sample-abc-def';
+  const meetingCancelUrl = 'https://timerex.net/schedule/cancel/sample123';
+  Logger.log('=== LステップAPI トリガーテスト（本番同様ペイロード・タグ付与確認用） ===');
+  Logger.log('UID: ' + testUid);
+  Logger.log('送信データ: meeting_date, meeting_url, meeting_cancel_url, tag');
+  Logger.log('→ triggerFriendUpdate を呼び出し（本番と同じ4キー）...');
+  try {
+    LStepApiService.triggerFriendUpdate(testUid, {
+      meeting_date: meetingDate,
+      meeting_url: meetingUrl,
+      meeting_cancel_url: meetingCancelUrl,
+      tag: tagName
+    });
+    Logger.log('✓ 成功。ログの「送信 params キー数: 8」と L-step 友だちリストで該当UIDのタグ・友だち情報を確認してください。');
+    return true;
+  } catch (e) {
+    Logger.log('✗ 失敗: ' + (e.message || e.toString()));
+    return false;
+  }
+}
+
+// ========== L-step 連携 単体テスト（データ取得・ペイロード・型の検証） ==========
+
+/**
+ * Utils.getUrlParamValue の単体テスト（url_params が配列・オブジェクト・null の各パターン）
+ * TimeRex Webhook の event.url_params から line_uid を取得する処理の検証
+ * 実行: runGetUrlParamValueTest
+ */
+function runGetUrlParamValueTest() {
+  Logger.log('=== runGetUrlParamValueTest: url_params から line_uid 取得 ===');
+  let ok = 0;
+  let ng = 0;
+  // 配列形式（TimeRex 仕様の例）
+  const fromArray = Utils.getUrlParamValue([{ line_uid: 'U6e967fdb7f0aaf99375946cad8744fad' }], 'line_uid');
+  if (fromArray === 'U6e967fdb7f0aaf99375946cad8744fad') {
+    Logger.log('  ✓ 配列 [ { line_uid: "U..." } ] から取得 OK');
+    ok++;
+  } else {
+    Logger.log('  ✗ 配列: 期待 U6e967fdb7f0aaf99375946cad8744fad, 実際 ' + fromArray);
+    ng++;
+  }
+  // オブジェクト形式（Premium 等で返る場合）
+  const fromObject = Utils.getUrlParamValue({ line_uid: 'U041ef7e8289f570b199c5c7811a4830b' }, 'line_uid');
+  if (fromObject === 'U041ef7e8289f570b199c5c7811a4830b') {
+    Logger.log('  ✓ オブジェクト { line_uid: "U..." } から取得 OK');
+    ok++;
+  } else {
+    Logger.log('  ✗ オブジェクト: 期待 U041ef7e8289f570b199c5c7811a4830b, 実際 ' + fromObject);
+    ng++;
+  }
+  // null / 未定義
+  const fromNull = Utils.getUrlParamValue(null, 'line_uid');
+  const fromUndef = Utils.getUrlParamValue(undefined, 'line_uid');
+  if (fromNull === '' && fromUndef === '') {
+    Logger.log('  ✓ null / undefined のとき空文字 OK');
+    ok++;
+  } else {
+    Logger.log('  ✗ null/undefined: 期待 "", 実際 fromNull=' + fromNull + ', fromUndef=' + fromUndef);
+    ng++;
+  }
+  // キーが無い
+  const noKey = Utils.getUrlParamValue({ other: 'x' }, 'line_uid');
+  if (noKey === '') {
+    Logger.log('  ✓ キーが無いとき空文字 OK');
+    ok++;
+  } else {
+    Logger.log('  ✗ キーなし: 期待 "", 実際 ' + noKey);
+    ng++;
+  }
+  Logger.log('結果: ' + ok + ' 成功, ' + ng + ' 失敗');
+  return ng === 0;
+}
+
+/**
+ * LStepApiService.formatDateTimeForLStep の単体テスト（型・形式）
+ * 実行: runFormatDateTimeForLStepTest
+ */
+function runFormatDateTimeForLStepTest() {
+  Logger.log('=== runFormatDateTimeForLStepTest: 日時フォーマット ===');
+  let ok = 0;
+  let ng = 0;
+  // Date オブジェクト → "YYYY-MM-DD HH:mm:ss"
+  const d = new Date('2026-02-12T23:00:00+09:00');
+  const formatted = LStepApiService.formatDateTimeForLStep(d);
+  const expectedPattern = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+  if (expectedPattern.test(formatted)) {
+    Logger.log('  ✓ 形式 YYYY-MM-DD HH:mm:ss: ' + formatted);
+    ok++;
+  } else {
+    Logger.log('  ✗ 形式 NG: ' + formatted);
+    ng++;
+  }
+  // 2026-02-12 23:00:00 に相当する値（タイムゾーンにより分は同じ）
+  if (formatted.startsWith('2026-02-12') && formatted.includes('23:00:00')) {
+    Logger.log('  ✓ 予約日時 2/12 23:00 がそのまま格納される形式');
+    ok++;
+  } else {
+    Logger.log('  ✗ 日時値: 期待 2026-02-12 23:00:00 系, 実際 ' + formatted);
+    ng++;
+  }
+  // ISO8601 文字列から
+  const fromIso = LStepApiService.formatDateTimeForLStep('2026-02-13T00:00:00.000Z');
+  if (expectedPattern.test(fromIso)) {
+    Logger.log('  ✓ ISO8601 文字列から変換 OK: ' + fromIso);
+    ok++;
+  } else {
+    Logger.log('  ✗ ISO8601 変換: ' + fromIso);
+    ng++;
+  }
+  Logger.log('結果: ' + ok + ' 成功, ' + ng + ' 失敗');
+  return ng === 0;
+}
+
+/**
+ * LStepApiService.buildTriggerPayload の単体テスト（L-step に送るペイロードのキー・型）
+ * 面談日時・ミーティングURL・キャンセルURL・タグが想定どおり格納されているか検証
+ * 実行: runLStepTriggerPayloadBuildTest
+ */
+function runLStepTriggerPayloadBuildTest() {
+  Logger.log('=== runLStepTriggerPayloadBuildTest: トリガーペイロード組み立て ===');
+  const uid = 'U6e967fdb7f0aaf99375946cad8744fad';
+  const meetingDate = '2026-02-12 23:00:00';
+  const meetingUrl = 'https://meet.google.com/kob-tctv-mjj';
+  const meetingCancelUrl = 'https://timerex.net/schedule/cancel/405379d3be43ce6e7a0a';
+  const tag = '面談予約済み';
+  const payload = LStepApiService.buildTriggerPayload(uid, {
+    meeting_date: meetingDate,
+    meeting_url: meetingUrl,
+    meeting_cancel_url: meetingCancelUrl,
+    tag: tag
+  });
+  let ok = 0;
+  let ng = 0;
+  if (payload.uid === uid) {
+    Logger.log('  ✓ uid 格納 OK');
+    ok++;
+  } else {
+    Logger.log('  ✗ uid: 期待 ' + uid + ', 実際 ' + payload.uid);
+    ng++;
+  }
+  if (payload.meeting_date === meetingDate && payload['面談日時'] === meetingDate) {
+    Logger.log('  ✓ meeting_date / 面談日時 格納 OK');
+    ok++;
+  } else {
+    Logger.log('  ✗ meeting_date: ' + JSON.stringify({ meeting_date: payload.meeting_date, '面談日時': payload['面談日時'] }));
+    ng++;
+  }
+  if (payload.meeting_url === meetingUrl && payload['ミーティングURL'] === meetingUrl) {
+    Logger.log('  ✓ meeting_url / ミーティングURL 格納 OK');
+    ok++;
+  } else {
+    Logger.log('  ✗ meeting_url: ' + JSON.stringify(payload));
+    ng++;
+  }
+  if (payload.meeting_cancel_url === meetingCancelUrl && payload['キャンセル用URL'] === meetingCancelUrl) {
+    Logger.log('  ✓ meeting_cancel_url / キャンセル用URL 格納 OK');
+    ok++;
+  } else {
+    Logger.log('  ✗ meeting_cancel_url: ' + JSON.stringify(payload));
+    ng++;
+  }
+  if (payload.tag === tag && payload['付与するタグ名'] === tag) {
+    Logger.log('  ✓ tag / 付与するタグ名 格納 OK');
+    ok++;
+  } else {
+    Logger.log('  ✗ tag: ' + JSON.stringify({ tag: payload.tag, '付与するタグ名': payload['付与するタグ名'] }));
+    ng++;
+  }
+  // L-step cURL サンプルでは params はオブジェクト型（配列ではない）
+  if (payload.params != null && typeof payload.params === 'object' && !Array.isArray(payload.params)) {
+    if (payload.params.meeting_date === meetingDate && payload.params['面談日時'] === meetingDate &&
+        payload.params.meeting_url === meetingUrl && payload.params.meeting_cancel_url === meetingCancelUrl &&
+        payload.params.tag === tag) {
+      Logger.log('  ✓ params がオブジェクトで中身一致 OK');
+      ok++;
+    } else {
+      Logger.log('  ✗ params の中身不一致: ' + JSON.stringify(payload.params));
+      ng++;
+    }
+  } else {
+    Logger.log('  ✗ params がオブジェクトではない: ' + (payload.params == null ? 'null/undefined' : typeof payload.params));
+    ng++;
+  }
+  // 送信形式の検証: JSON に params 配列が含まれず、snake_case キーが含まれること
+  const payloadJson = JSON.stringify(payload);
+  if (payloadJson.indexOf('"params":[]') === -1) {
+    Logger.log('  ✓ 送信JSON に "params":[] が含まれない（params はオブジェクト）');
+    ok++;
+  } else {
+    Logger.log('  ✗ 送信JSON に "params":[] が含まれる');
+    ng++;
+  }
+  if (payloadJson.indexOf('"meeting_date"') !== -1) {
+    Logger.log('  ✓ 送信JSON に snake_case "meeting_date" が含まれる');
+    ok++;
+  } else {
+    Logger.log('  ✗ 送信JSON に "meeting_date" が含まれない');
+    ng++;
+  }
+  if (payload.meetingDate === meetingDate && payload.meetingUrl === meetingUrl && payload.meetingCancelUrl === meetingCancelUrl) {
+    Logger.log('  ✓ L-step 表示用 camelCase（meetingDate, meetingUrl, meetingCancelUrl）が含まれる');
+    ok++;
+  } else {
+    Logger.log('  ✗ camelCase キー不足: ' + JSON.stringify({ meetingDate: payload.meetingDate, meetingUrl: payload.meetingUrl, meetingCancelUrl: payload.meetingCancelUrl }));
+    ng++;
+  }
+  Logger.log('結果: ' + ok + ' 成功, ' + ng + ' 失敗');
+  return ng === 0;
+}
+
+/**
+ * Webhook event から L-step に渡すデータ抽出のステップ検証（単体テスト）
+ * 実際の handleEventConfirmed で使うのと同じ取得ロジックで、想定イベントから値を取り出せるか確認
+ * 実行: runWebhookEventToLStepDataExtractionTest
+ */
+function runWebhookEventToLStepDataExtractionTest() {
+  Logger.log('=== runWebhookEventToLStepDataExtractionTest: Webhook event → L-step データ ===');
+  const mockEvent = {
+    id: 'test-event-id',
+    url_params: { line_uid: 'U6e967fdb7f0aaf99375946cad8744fad' },
+    local_start_datetime: '2026-02-12T23:00:00+09:00',
+    local_end_datetime: '2026-02-13T00:00:00+09:00',
+    zoom_meeting: { join_url: 'https://meet.google.com/kob-tctv-mjj' },
+    guest_cancel_url: 'https://timerex.net/schedule/cancel/405379d3be43ce6e7a0a',
+    form: [
+      { field_type: 'guest_name', value: '原口陽一郎' },
+      { field_type: 'guest_email', value: 'test@example.com' }
+    ]
+  };
+  const lineUid = Utils.getUrlParamValue(mockEvent.url_params, 'line_uid');
+  const startAt = Utils.parseISO8601(mockEvent.local_start_datetime);
+  const meetingDate = startAt ? LStepApiService.formatDateTimeForLStep(startAt) : '';
+  let meetUrl = '';
+  if (mockEvent.zoom_meeting && mockEvent.zoom_meeting.join_url) {
+    meetUrl = mockEvent.zoom_meeting.join_url;
+  }
+  const guestCancelUrl = mockEvent.guest_cancel_url || '';
+  let ok = 0;
+  let ng = 0;
+  if (lineUid === 'U6e967fdb7f0aaf99375946cad8744fad') {
+    Logger.log('  ✓ line_uid 抽出 OK');
+    ok++;
+  } else {
+    Logger.log('  ✗ line_uid: ' + lineUid);
+    ng++;
+  }
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(meetingDate) && meetingDate.indexOf('2026-02-12') === 0) {
+    Logger.log('  ✓ 面談日時（予約日時）抽出 OK: ' + meetingDate + ' （形式・日付一致）');
+    ok++;
+  } else {
+    Logger.log('  ✗ meetingDate: 期待 YYYY-MM-DD HH:mm:ss かつ 2026-02-12, 実際 ' + meetingDate);
+    ng++;
+  }
+  if (meetUrl === 'https://meet.google.com/kob-tctv-mjj') {
+    Logger.log('  ✓ ミーティングURL 抽出 OK');
+    ok++;
+  } else {
+    Logger.log('  ✗ meetUrl: ' + meetUrl);
+    ng++;
+  }
+  if (guestCancelUrl === 'https://timerex.net/schedule/cancel/405379d3be43ce6e7a0a') {
+    Logger.log('  ✓ キャンセルURL 抽出 OK');
+    ok++;
+  } else {
+    Logger.log('  ✗ guestCancelUrl: ' + guestCancelUrl);
+    ng++;
+  }
+  const tagName = Config.LSTEP_TAG_NAMES.BOOKING_CONFIRMED || '面談予約済み';
+  const payload = LStepApiService.buildTriggerPayload(lineUid, {
+    meeting_date: meetingDate,
+    meeting_url: meetUrl || null,
+    meeting_cancel_url: guestCancelUrl || null,
+    tag: tagName
+  });
+  if (payload['面談日時'] && payload['ミーティングURL'] && payload['キャンセル用URL']) {
+    Logger.log('  ✓ ペイロードに L-step テキスト送信用キー（面談日時・ミーティングURL・キャンセル用URL）が含まれる');
+    ok++;
+  } else {
+    Logger.log('  ✗ ペイロード不足: ' + JSON.stringify(payload));
+    ng++;
+  }
+  Logger.log('結果: ' + ok + ' 成功, ' + ng + ' 失敗');
+  return ng === 0;
+}
+
+/**
+ * L-step 連携まわりの単体テストを一括実行
+ * 実行: runLStepUnitTests
+ */
+function runLStepUnitTests() {
+  Logger.log('========== L-step 連携 単体テスト一括 ==========');
+  const results = {
+    getUrlParamValue: runGetUrlParamValueTest(),
+    formatDateTime: runFormatDateTimeForLStepTest(),
+    triggerPayload: runLStepTriggerPayloadBuildTest(),
+    webhookToLStepData: runWebhookEventToLStepDataExtractionTest()
+  };
+  Logger.log('----------------------------------------');
+  Logger.log('総合: getUrlParamValue=' + (results.getUrlParamValue ? 'OK' : 'NG') +
+    ', formatDateTime=' + (results.formatDateTime ? 'OK' : 'NG') +
+    ', triggerPayload=' + (results.triggerPayload ? 'OK' : 'NG') +
+    ', webhookToLStepData=' + (results.webhookToLStepData ? 'OK' : 'NG'));
+  return results.getUrlParamValue && results.formatDateTime && results.triggerPayload && results.webhookToLStepData;
 }
 
 /**

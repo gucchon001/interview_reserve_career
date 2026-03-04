@@ -15,14 +15,27 @@ const Config = {
     SPREADSHEET_ID: 'SPREADSHEET_ID',
     SLACK_WEBHOOK_URL: 'SLACK_WEBHOOK_URL', // Slack通知用Webhook URL
     LSTEP_API_KEY: 'LSTEP_API_TOKEN', // LステップAPIトークン（スクリプトプロパティ名）
-    LSTEP_TRIGGER_URL: 'LSTEP_TRIGGER_URL' // ⑤のcURLサンプルで取得したトリガーURL（任意・runLStepApiTriggerTest用）
+    LSTEP_TRIGGER_URL: 'LSTEP_TRIGGER_URL', // ⑤のcURLサンプルで取得したトリガーURL（予約確定時の友だち情報・タグ用）
+    LSTEP_CANCEL_TRIGGER_URL: 'LSTEP_CANCEL_TRIGGER_URL', // キャンセル時の友だち情報クリア用トリガーURL。未設定時は LSTEP_TRIGGER_URL を使用（後方互換）
+    LSTEP_BOOKING_LINK_TRIGGER_URL: 'LSTEP_BOOKING_LINK_TRIGGER_URL', // 予約URL送信用トリガー（postback 受信後にメッセージで session_id 付きURLを送る用。未設定なら従来どおりレスポンスHTMLのみ）
+    LSTEP_BOOKING_LINK_POSTBACK_PATTERN: 'LSTEP_BOOKING_LINK_POSTBACK_PATTERN', // 予約URLを送る postback の条件。未設定または空＝すべての postback で送信。設定時は postback.data にこの文字列が含まれるときのみ送信（例: booking）
+    MEET_SA_CLIENT_EMAIL: 'MEET_SA_CLIENT_EMAIL',   // Google Meet API 用サービスアカウントの client_email（ドメイン全体の委任で主催者になりすます）
+    MEET_SA_PRIVATE_KEY: 'MEET_SA_PRIVATE_KEY'      // 上記サービスアカウントの private_key（PEM。改行は \n のまままたは実際の改行で保存可）
   },
 
   // シート名
   SHEET_NAMES: {
     INTERVIEWERS: 'interviewers',
     INTERVIEWS: 'interviews',
-    UIDLOG: 'uidlog' // UID取得ログ（日時, uid, sessionid, イベント種別）。UID取得用GASと面談表示URLを分離した構成で使用
+    UIDLOG: 'uidlog', // UID取得ログ（日時, uid, sessionid, イベント種別）。UID取得用GASと面談表示URLを分離した構成で使用
+    TEMPLATE: 'template' // L-step テンプレート対応（tag=flex_code等の接頭辞, name, outer_id=面談官ID）。予約URL送信対象と redirectUrl の interviewer_id に利用
+  },
+
+  // template シートのカラムインデックス（A列=1, B列=2, ...）
+  TEMPLATE_COLUMNS: {
+    TAG: 1,       // A: L-step の flex_code / carousel_code の接頭辞（postback.data に含まれる）
+    NAME: 2,      // B: 表示名（共通・尾座本など）
+    OUTER_ID: 3   // C: 面談官ID（interviewers の id と対応）。空なら統合カレンダー
   },
 
   // interviewersシートのカラムインデックス（A列=1, B列=2, ...）
@@ -31,7 +44,8 @@ const Config = {
     NAME: 2,                  // B
     TIMEREX_CONFIG_ID: 3,     // C
     GOOGLE_CALENDAR_ID: 4,    // D
-    PRIORITY: 5               // E（優先順位：低い数値ほど優先度が高い）
+    PRIORITY: 5,             // E（優先順位：低い数値ほど優先度が高い）
+    SLACK_MEMBER_ID: 6       // F（Slackメンション用メンバーID）
   },
 
   // interviewsシートのカラムインデックス（A列=1, B列=2, ...）

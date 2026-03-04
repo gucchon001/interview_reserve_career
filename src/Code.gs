@@ -12,37 +12,30 @@
 function doGet(e) {
   try {
     const action = e.parameter.action;
-    
+    const fromLine = (e.parameter.from || '').toString().trim() === 'line';
     // L-step フロー: postback タップ → メッセージでURL送信 → ユーザーがURLクリックでGET
-    // GET 時は interviewer_id があればそれで検索、なければ直近セッションでリダイレクト
-    if (action === 'lstep_webhook') {
+    // 【重要】session_id がURLに含まれている場合はそれを優先する。含まれていない場合のみ「直近1件」を使用。
+    // 「直近1件」は同時刻に他ユーザーがpostbackすると別ユーザーのセッションが割り当てられるため危険。→ docs/operations/INCIDENT_UID_MIXING_2026-02.md
+    // action=lstep_webhook だと一部環境でPC表示になるため、メッセージ用リンクは ?from=line を推奨。
+    if (action === 'lstep_webhook' || fromLine) {
       const interviewerId = (e.parameter.interviewer_id || '').toString().trim();
-      let recent = null;
-      if (interviewerId) {
-        recent = SpreadsheetService.getRecentSessionByInterviewerId(interviewerId, 120);
+      const sessionIdFromUrl = (e.parameter.session_id || '').toString().trim();
+      let sessionIdToUse = sessionIdFromUrl;
+      if (!sessionIdToUse) {
+        const recent = SpreadsheetService.getMostRecentSession(120);
+        if (recent) sessionIdToUse = recent.sessionId;
       }
-      if (!recent) {
-        recent = SpreadsheetService.getMostRecentSession(120); // interviewer_id なし時のフォールバック
-      }
-      if (recent) {
-        const baseUrl = (Config.BOOKING_BASE_URL && Config.BOOKING_BASE_URL.trim()) !== ''
-          ? Config.BOOKING_BASE_URL.replace(/\/$/, '')
-          : `https://script.google.com/macros/s/${ScriptApp.getScriptId()}/exec`;
-        const redirectUrl = `${baseUrl}?session_id=${recent.sessionId}${interviewerId ? '&interviewer_id=' + interviewerId : ''}`;
-        const esc = (s) => String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-        // リダイレクト: viewport を先に置き、モバイルで解釈されるようにする。その後 script で即遷移。bodyは空（LINE WebViewでPC表示になる問題を回避）
-        return HtmlService.createHtmlOutput(
-          '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
-          '<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">' +
-          '<meta http-equiv="refresh" content="0;url=' + redirectUrl.replace(/&/g, '&amp;') + '">' +
-          '<script>window.location.replace("' + esc(redirectUrl) + '");</script>' +
-          '</head><body></body></html>'
-        ).setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+      if (sessionIdToUse) {
+        // リダイレクトHTMLを返すと一部環境でPC表示になるため、予約画面を直接返す（中間ページを出さない）
+        const bookingParams = { session_id: sessionIdToUse };
+        if (interviewerId) bookingParams.interviewer_id = interviewerId;
+        return handleBookingPage({ parameter: bookingParams });
       }
       return HtmlService.createHtmlOutput(`
         <!DOCTYPE html><html><head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+        <meta name="mobile-web-app-capable" content="yes">
         <title>エラー</title></head><body style="font-size:16px;padding:16px;">
         <h1>セッションが見つかりません</h1>
         <p>ボタンをタップしてから、表示されたURLを2分以内にクリックしてください。</p>
@@ -98,9 +91,10 @@ function extractUidFromPayload(obj, depth) {
 }
 
 /**
- * LステップWebhook転送を受信してUIDを取得・リダイレクト
+ * LステップWebhook転送を受信してUIDを取得し、セッションを保存する。
+ * 戻り値はリダイレクト用HTML（L-stepサーバーが受け取る。ユーザーはメッセージ内の ?from=line を開き、そのときは予約画面を直接表示）。
  * @param {Object} e - リクエストパラメータ
- * @return {HtmlOutput} HTMLレスポンス（リダイレクト）
+ * @return {HtmlOutput} HTMLレスポンス
  */
 function handleLStepWebhook(e) {
   try {
@@ -229,7 +223,26 @@ function handleLStepWebhook(e) {
       }
     }
     if (interviewerId) Logger.log('[handleLStepWebhook] interviewer_id from postback: ' + interviewerId);
-    
+
+    // template シート: postback.data に含まれる tag から interviewer_id（outer_id）を解決
+    const eventsForData = parsedPayload && (parsedPayload.events || parsedPayload.body?.events || parsedPayload.data?.events || []);
+    const firstEventForData = Array.isArray(eventsForData) && eventsForData.length > 0 ? eventsForData[0] : null;
+    const dataStrForTemplate = (firstEventForData && firstEventForData.postback && firstEventForData.postback.data) ? String(firstEventForData.postback.data) : '';
+    if (!interviewerId && dataStrForTemplate) {
+      const outerId = SpreadsheetService.getInterviewerIdForPostbackData(dataStrForTemplate);
+      if (outerId) {
+        interviewerId = outerId;
+        Logger.log('[handleLStepWebhook] interviewer_id from template sheet (outer_id): ' + interviewerId);
+      }
+    }
+
+    // L-stepのfriend_id（1. ペイロード先頭 2. postback.data の friend_id キー 3. postback.data の flex_code 内 _9桁_）
+    let friendId = (parsedPayload && parsedPayload.friend_id != null && parsedPayload.friend_id !== '') ? String(parsedPayload.friend_id).trim() : '';
+    if (!friendId && dataStrForTemplate) {
+      friendId = Utils.extractFriendIdFromPostbackData(dataStrForTemplate);
+      if (friendId) Logger.log('[handleLStepWebhook] friend_id from postback.data (flex_code): ' + friendId);
+    }
+
     // セッションIDを生成
     const sessionId = Utilities.getUuid();
     
@@ -239,8 +252,8 @@ function handleLStepWebhook(e) {
     cache.put(`uid_${sessionId}`, uid, 600);
     Logger.log('[handleLStepWebhook] UID saved to cache with session_id: ' + sessionId);
     
-    // 2. uidlogに保存（日時, uid, sessionid, イベント種別）
-    const saved = SpreadsheetService.saveToUidlog(uid, sessionId, 'postback');
+    // 2. uidlogに保存（日時, uid, sessionid, イベント種別, friendid）
+    const saved = SpreadsheetService.saveToUidlog(uid, sessionId, 'postback', friendId);
     
     if (!saved) {
       Logger.log('[handleLStepWebhook] ⚠️ Failed to save to uidlog (continuing anyway)');
@@ -253,23 +266,78 @@ function handleLStepWebhook(e) {
     const baseUrl = (Config.BOOKING_BASE_URL && Config.BOOKING_BASE_URL.trim()) !== ''
       ? Config.BOOKING_BASE_URL.replace(/\/$/, '')
       : `https://script.google.com/macros/s/${ScriptApp.getScriptId()}/exec`;
-    const redirectUrl = `${baseUrl}?session_id=${sessionId}${interviewerId ? '&interviewer_id=' + interviewerId : ''}`;
+    const redirectUrl = `${baseUrl}?session_id=${sessionId}${interviewerId ? '&interviewer_id=' + interviewerId : ''}&from=line`;
+    const redirectUrlEscaped = redirectUrl.replace(/&/g, '&amp;'); // meta content 用
 
     Logger.log('[handleLStepWebhook] Redirecting to: ' + redirectUrl);
+
+    // API連携で「予約URLをメッセージに埋め込んで送信」する（LSTEP_BOOKING_LINK_TRIGGER_URL が設定されている場合）
+    // 送信条件: event.type === 'postback'。さらに (1) LSTEP_BOOKING_LINK_POSTBACK_PATTERN が設定されていればその文字列が postback.data に含まれるとき、(2) 未設定で template シートに行があれば postback.data がその tag のいずれかに一致するとき、(3) それ以外はすべての postback で送信
+    const bookingLinkTriggerUrl = PropertiesService.getScriptProperties().getProperty(Config.PROPERTY_KEYS.LSTEP_BOOKING_LINK_TRIGGER_URL) || '';
+    const bookingLinkPostbackPattern = (PropertiesService.getScriptProperties().getProperty(Config.PROPERTY_KEYS.LSTEP_BOOKING_LINK_POSTBACK_PATTERN) || '').trim();
+    Logger.log('[handleLStepWebhook] LSTEP_BOOKING_LINK_TRIGGER_URL: ' + (bookingLinkTriggerUrl && bookingLinkTriggerUrl.trim() ? 'set len=' + bookingLinkTriggerUrl.trim().length : 'empty'));
+    let shouldSendBookingLink = false;
+    if (bookingLinkTriggerUrl && bookingLinkTriggerUrl.trim()) {
+      const events = parsedPayload && (parsedPayload.events || parsedPayload.body?.events || parsedPayload.data?.events || []);
+      const firstEvent = Array.isArray(events) && events.length > 0 ? events[0] : null;
+      if (firstEvent && firstEvent.type === 'postback') {
+        const dataStr = (firstEvent.postback && firstEvent.postback.data) ? String(firstEvent.postback.data) : '';
+        Logger.log('[handleLStepWebhook] postback.data (パターン判定用): ' + (dataStr || '(空)'));
+        // 実行ログを開かずに確認できるよう、postback.data を uidlog に1行追記
+        try {
+          SpreadsheetService.saveToUidlog(uid, sessionId, 'POSTBACK_DATA: ' + (dataStr || '(空)').substring(0, 100), friendId);
+        } catch (_) { /* ログ失敗は無視 */ }
+        if (bookingLinkPostbackPattern) {
+          shouldSendBookingLink = dataStr.indexOf(bookingLinkPostbackPattern) !== -1;
+          if (!shouldSendBookingLink) Logger.log('[handleLStepWebhook] 予約URL送信スキップ: postback.data がパターン "' + bookingLinkPostbackPattern + '" に一致しません');
+        } else {
+          const templates = SpreadsheetService.getBookingLinkTemplates();
+          if (templates.length > 0) {
+            shouldSendBookingLink = SpreadsheetService.isPostbackDataMatchingTemplate(dataStr);
+            if (!shouldSendBookingLink) Logger.log('[handleLStepWebhook] 予約URL送信スキップ: postback.data が template シートのいずれの tag にも一致しません');
+          } else {
+            shouldSendBookingLink = true;
+          }
+        }
+      } else {
+        Logger.log('[handleLStepWebhook] 予約URL送信スキップ: イベント種別が postback ではありません (type=' + (firstEvent ? firstEvent.type : 'none') + ')');
+      }
+    }
+    if (bookingLinkTriggerUrl && bookingLinkTriggerUrl.trim() && shouldSendBookingLink) {
+      try {
+        LStepApiService.triggerBookingLinkMessage(uid, redirectUrl);
+        Logger.log('[handleLStepWebhook] 予約URL送信トリガー呼び出し完了');
+        try {
+          SpreadsheetService.saveToUidlog(uid, sessionId, 'BOOKING_LINK_SENT', friendId);
+        } catch (_) { /* ログ失敗は無視 */ }
+      } catch (linkErr) {
+        Logger.log('[handleLStepWebhook] 予約URL送信トリガーエラー（処理は続行）: ' + linkErr.toString());
+        Utils.logError('handleLStepWebhook.triggerBookingLinkMessage', linkErr, { uid, sessionId });
+        try {
+          SpreadsheetService.saveToUidlog(uid, sessionId, 'BOOKING_LINK_ERROR: ' + (linkErr.message || linkErr.toString()).substring(0, 80), friendId);
+        } catch (_) { /* ログ失敗は無視 */ }
+      }
+    }
     
+    // L-step がレスポンスからメッセージ用URLを取得できるよう、session_id 付きURLを機械可読で埋め込む（UID混入防止）
     return HtmlService.createHtmlOutput(`
       <!DOCTYPE html>
       <html lang="ja">
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+        <meta name="booking_url" content="${redirectUrlEscaped}">
         <meta http-equiv="refresh" content="0;url=${redirectUrl}">
         <title>リダイレクト中...</title>
+        <script>
+          window.LSTEP_BOOKING_URL = ${JSON.stringify(redirectUrl)};
+        </script>
       </head>
       <body style="font-size:16px;padding:16px;">
         <p>リダイレクト中...</p>
+        <!-- LSTEP_BOOKING_URL: ${redirectUrl} -->
         <script>
-          window.location.href = '${redirectUrl}';
+          window.location.href = ${JSON.stringify(redirectUrl)};
         </script>
       </body>
       </html>
@@ -336,9 +404,10 @@ function handleBookingPage(e) {
   const interviewerId = e.parameter.interviewer_id || null;
   
   // ユーザー情報取得（現時点では簡易実装）
-  // TODO: LINE API連携が必要な場合は実装
+  // uid と session_id をセットで渡し、予約確定時の line_uid と一意に紐づける（UID混入防止）
   const userData = {
     uid: uid,
+    sessionId: sessionId || '', // 予約画面URLの session_id（uid と対応）。L-step メッセージURLに含めることで混入防止
     userName: 'ゲスト様', // デフォルト値
     userEmail: '',
     userImage: ''
@@ -598,6 +667,11 @@ function handleAdminPage(e) {
  */
 function doPost(e) {
   try {
+    // doPost が呼ばれた証拠を残す（実行一覧に doPost が出ない場合の確認用）
+    try {
+      PropertiesService.getScriptProperties().setProperty('LAST_DOPOST_AT', new Date().toISOString());
+    } catch (_) { /* 失敗は無視 */ }
+
     // === 最初に必ずログ記録（デプロイ確認用マーカー付き） ===
     const LOG_VER = '20260210'; // デプロイ確認: この値がログに出れば新コードが動いている
     const rawBodyStr = (e.postData && e.postData.contents) ? String(e.postData.contents) : '(no postData)';
@@ -876,41 +950,41 @@ function doPost(e) {
  * @return {string|null} TimeRexカレンダーURL（エラーの場合はnull）
  */
 function getTimeRexBaseUrl(interviewer = null) {
+  const config = getTimeRexCalendarConfig(interviewer);
+  return config ? config.calendarUrl : null;
+}
+
+/**
+ * 取得しているTimeRexカレンダー情報を返す（管理画面表示・テスト用）
+ * @param {Object|null} [interviewer] - 面談官オブジェクト（省略時は統合カレンダー）
+ * @return {Object|null} { teamUrlPath, calendarUrlPath, calendarUrl } または null
+ */
+function getTimeRexCalendarConfig(interviewer) {
   try {
     const teamUrlPath = PropertiesService.getScriptProperties().getProperty(Config.PROPERTY_KEYS.TIMEREX_TEAM_URL_PATH);
-    
-    if (!teamUrlPath) {
-      Logger.log('[getTimeRexBaseUrl] TIMEREX_TEAM_URL_PATH is not set');
-      return null;
+    if (!teamUrlPath) return null;
+
+    if (interviewer && interviewer.timerexConfigId) {
+      return {
+        teamUrlPath: teamUrlPath,
+        calendarUrlPath: interviewer.timerexConfigId,
+        calendarUrl: `https://timerex.net/s/${teamUrlPath}/${interviewer.timerexConfigId}`,
+        label: '個別カレンダー'
+      };
     }
-    
-    if (interviewer) {
-      // 個別カレンダー: interviewer_idが指定されている場合
-      if (!interviewer.timerexConfigId) {
-        Logger.log(`[getTimeRexBaseUrl] Interviewer ${interviewer.id} has no timerexConfigId`);
-        return null;
-      }
-      return `https://timerex.net/s/${teamUrlPath}/${interviewer.timerexConfigId}`;
-    } else {
-      // 統合カレンダー: interviewer_idが指定されていない場合
-      let teamCalendarUrlPath = PropertiesService.getScriptProperties().getProperty(Config.PROPERTY_KEYS.TIMEREX_TEAM_CALENDAR_URL_PATH);
-      
-      // 後方互換性: 古いプロパティ名もチェック
-      if (!teamCalendarUrlPath) {
-        teamCalendarUrlPath = PropertiesService.getScriptProperties().getProperty(Config.PROPERTY_KEYS.TIMEREX_CALENDAR_URL_PATH);
-        if (teamCalendarUrlPath) {
-          Logger.log('[getTimeRexBaseUrl] Using legacy TIMEREX_CALENDAR_URL_PATH, please migrate to TIMEREX_TEAM_CALENDAR_URL_PATH');
-        }
-      }
-      
-      if (!teamCalendarUrlPath) {
-        Logger.log('[getTimeRexBaseUrl] TIMEREX_TEAM_CALENDAR_URL_PATH is not set');
-        return null;
-      }
-      return `https://timerex.net/s/${teamUrlPath}/${teamCalendarUrlPath}`;
+    let calendarUrlPath = PropertiesService.getScriptProperties().getProperty(Config.PROPERTY_KEYS.TIMEREX_TEAM_CALENDAR_URL_PATH);
+    if (!calendarUrlPath) {
+      calendarUrlPath = PropertiesService.getScriptProperties().getProperty(Config.PROPERTY_KEYS.TIMEREX_CALENDAR_URL_PATH);
     }
-  } catch (error) {
-    Utils.logError('getTimeRexBaseUrl', error, { interviewer: interviewer ? interviewer.id : null });
+    if (!calendarUrlPath) return null;
+    return {
+      teamUrlPath: teamUrlPath,
+      calendarUrlPath: calendarUrlPath,
+      calendarUrl: `https://timerex.net/s/${teamUrlPath}/${calendarUrlPath}`,
+      label: '統合カレンダー'
+    };
+  } catch (e) {
+    Utils.logError('getTimeRexCalendarConfig', e);
     return null;
   }
 }
@@ -950,6 +1024,7 @@ function getAdminData(interviewerId = null, startDateStr = null, endDateStr = nu
     
     Logger.log(`[getAdminData] success: events=${result.events ? result.events.length : 0}, interviews=${result.interviews ? result.interviews.length : 0}`);
     
+    result.timerexCalendar = getTimeRexCalendarConfig(null);
     return result;
   } catch (e) {
     Utils.logError('getAdminData', e, { interviewerId, startDateStr, endDateStr });
@@ -1391,7 +1466,8 @@ function registerManualBooking(bookingData) {
         dateTime: startTime.toISOString(),
         interviewerName: interviewer.name || '未設定',
         interviewerEmail: interviewer.googleCalendarId || '',
-        bookingId: ''
+        interviewerSlackMemberId: interviewer.slackMemberId || '',
+        adminPageUrl: Utils.getAdminPageUrl(bookingData.interviewerId || '')
       });
     } catch (slackError) {
       Logger.log(`[registerManualBooking] Slack通知エラー（無視）: ${slackError.toString()}`);

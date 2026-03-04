@@ -2,7 +2,9 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="format-detection" content="telephone=no">
   <title>面談予約 | エージェント日程調整</title>
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -267,14 +269,16 @@
 
       createApp({
       setup() {
-        // GASテンプレートから受け取るデータ
-        const userData = <?= userData ?>;
+        // GASテンプレートから受け取るデータ（GAS は JSON.stringify で渡すため文字列になる場合がある）
+        const userDataRaw = <?= userData ?>;
+        const userData = typeof userDataRaw === 'string' ? (() => { try { return JSON.parse(userDataRaw); } catch (_) { return {}; } })() : (userDataRaw || {});
         const timerexBaseUrlFromServer = '<?= timerexBaseUrl ?>';
         const errorMessageFromServer = '<?= errorMessage ?>';
         const interviewerNameFromServer = '<?= interviewerName ?>';
         
-        // ユーザーデータ
+        // ユーザーデータ（uid と sessionId はセットで渡され、L-step メッセージURLの session_id と一致させることで UID 混入を防ぐ）
         const uid = ref(userData.uid || '');
+        const sessionId = ref(userData.sessionId || '');
         const userEmail = ref(userData.userEmail || '');
         const userImage = ref(userData.userImage || '');
         
@@ -307,9 +311,12 @@
           //   config['guest_email'] = userEmail.value;
           // }
 
-          // LINEユーザーIDをurl_paramsに設定
+          // LINEユーザーIDとセッションIDをurl_paramsに設定（uid と session_id をセットで TimeRex に渡す）
           if (uid.value) {
             config['url_params']['line_uid'] = uid.value;
+          }
+          if (sessionId.value) {
+            config['url_params']['session_id'] = sessionId.value;
           }
 
           // ウィジェットカスタマイズ（Premiumプラン機能）

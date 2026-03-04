@@ -41,9 +41,37 @@ const WebhookHandler = {
       const guestEmail = Utils.getFormValue(event.form, 'guest_email');
       Logger.log(`[WebhookHandler] Guest name: ${guestName}, email: ${guestEmail}`);
       
-      // url_paramsからLINEユーザーIDを取得
-      const lineUid = Utils.getUrlParamValue(event.url_params, 'line_uid');
+      // url_params の実体をログに出し、TimeRex の仕様確認に使う
+      Logger.log(`[WebhookHandler] event.url_params: type=${typeof event.url_params}, value=${JSON.stringify(event.url_params != null ? event.url_params : 'null')}`);
+      if (event.custom_data != null) {
+        Logger.log(`[WebhookHandler] event.custom_data: ${JSON.stringify(event.custom_data).substring(0, 200)}`);
+      }
+      // url_paramsからLINEユーザーIDを取得（配列・オブジェクト両対応）
+      let lineUid = Utils.getUrlParamValue(event.url_params, 'line_uid');
+      if (!lineUid && event.custom_data && typeof event.custom_data === 'object') {
+        lineUid = (event.custom_data.line_uid || event.custom_data.uid || '').toString();
+        if (lineUid) Logger.log(`[WebhookHandler] LINE UID from custom_data: ${lineUid}`);
+      }
       Logger.log(`[WebhookHandler] LINE UID: ${lineUid || '(not provided)'}`);
+
+      // session_id と line_uid の対応検証（uidlog と照合。混同・改ざんの検知用。不一致でも予約処理は続行）
+      const eventSessionId = (Utils.getUrlParamValue(event.url_params, 'session_id') || '').toString().trim()
+        || (event.custom_data && typeof event.custom_data === 'object' && (event.custom_data.session_id || event.custom_data.sessionId || '').toString().trim()) || '';
+      if (eventSessionId && lineUid) {
+        try {
+          const uidForSession = SpreadsheetService.getUidFromSessionSpreadsheet(eventSessionId);
+          if (uidForSession !== null && uidForSession !== lineUid) {
+            Logger.log(`[WebhookHandler] ⚠️ UID_MISMATCH: session_id=${eventSessionId} → uidlog says ${uidForSession}, but event has line_uid=${lineUid}. Possible mix-up or tampering.`);
+            try {
+              SpreadsheetService.saveToUidlog(lineUid || '', eventSessionId, `WEBHOOK_UID_MISMATCH: expected=${uidForSession} got=${lineUid}`);
+            } catch (_) { /* ログ失敗は無視 */ }
+          } else if (uidForSession === lineUid) {
+            Logger.log(`[WebhookHandler] ✅ session_id and line_uid match uidlog`);
+          }
+        } catch (verifyErr) {
+          Logger.log(`[WebhookHandler] session_id/uid verification error (ignored): ${verifyErr.toString()}`);
+        }
+      }
       
       // ミーティングURL（zoom_meetingまたはonline_meeting_providerから取得）
       let meetUrl = '';
@@ -53,6 +81,10 @@ const WebhookHandler = {
       } else if (event.google_meet_meeting && event.google_meet_meeting.join_url) {
         meetUrl = event.google_meet_meeting.join_url;
         Logger.log(`[WebhookHandler] Google Meet URL found`);
+        // Google Meet の文字起こしをデフォルトオン（MEET_SA_* が設定されていれば実行）
+        if (event.hosts && event.hosts.length > 0) {
+          MeetApiService.enableTranscriptionIfConfigured(meetUrl, event.hosts[0].email);
+        }
       } else if (event.microsoft_teams_meeting && event.microsoft_teams_meeting.join_url) {
         meetUrl = event.microsoft_teams_meeting.join_url;
         Logger.log(`[WebhookHandler] Microsoft Teams URL found`);
@@ -110,13 +142,31 @@ const WebhookHandler = {
         }
       }
 
-      // 多重予約ブロック: 同じメールアドレスで既に有効な予約がある場合はエラー
-      if (guestEmail) {
+      // 同一メールで既に有効な予約がある場合: event_confirmed は TimeRex 側で確定済みの事実なので、
+      // 既存が「別の event_id」なら取り消し扱いにして新規を登録する（エラーにしない）
+      if (guestEmail && event.id) {
         const existingActiveInterview = SpreadsheetService.findActiveInterviewByGuestEmail(guestEmail);
         if (existingActiveInterview) {
-          Logger.log(`[WebhookHandler] Active interview already exists for guest_email: ${guestEmail}, row: ${existingActiveInterview.rowIndex}`);
-          Logger.log(`[WebhookHandler] Rejecting duplicate booking`);
-          throw new Error(`DUPLICATE_BOOKING: このメールアドレス（${guestEmail}）では既に予約が存在します。新しい予約をするには、まず既存の予約をキャンセルしてください。`);
+          const existingEventId = (existingActiveInterview.data && existingActiveInterview.data.eventId) || '';
+          if (existingEventId === event.id) {
+            // 同一 event_id は上段の findInterviewByEventId でスキップ済みのためここには来ない想定
+            Logger.log(`[WebhookHandler] Interview already exists for event_id: ${event.id}, row: ${existingActiveInterview.rowIndex}`);
+            return {
+              success: true,
+              rowIndex: existingActiveInterview.rowIndex,
+              skipped: true,
+              reason: 'duplicate'
+            };
+          }
+          // 別の event_id: TimeRex で新規予約が確定したため、古い予約をキャンセルして新規を登録
+          Logger.log(`[WebhookHandler] Superseding previous booking: guest_email=${guestEmail}, old event_id=${existingEventId}, new event_id=${event.id}, row=${existingActiveInterview.rowIndex}`);
+          try {
+            SpreadsheetService.updateInterviewStatus(existingActiveInterview.rowIndex, Config.EVENT_STATUS.CANCELLED);
+            Logger.log(`[WebhookHandler] Previous booking row ${existingActiveInterview.rowIndex} set to CANCELLED`);
+          } catch (cancelErr) {
+            Logger.log(`[WebhookHandler] Failed to cancel previous row (continuing): ${cancelErr.toString()}`);
+            Utils.logError('WebhookHandler.handleEventConfirmed.supersede', cancelErr, { rowIndex: existingActiveInterview.rowIndex });
+          }
         }
       }
 
@@ -212,13 +262,15 @@ const WebhookHandler = {
         
         // Slack通知を送信
         try {
-          // 面談担当者名を取得
+          // 面談者名・Slackメンション用IDを取得
           let interviewerName = '未設定';
+          let interviewerSlackMemberId = '';
           if (interviewerId) {
             const allInterviewers = AdminApiService.getAllInterviewers();
             const interviewer = allInterviewers.find(i => i.id === interviewerId);
-            if (interviewer && interviewer.name) {
-              interviewerName = interviewer.name;
+            if (interviewer) {
+              if (interviewer.name) interviewerName = interviewer.name;
+              if (interviewer.slackMemberId) interviewerSlackMemberId = interviewer.slackMemberId;
             }
           }
           
@@ -227,7 +279,8 @@ const WebhookHandler = {
             dateTime: startAt.toISOString(),
             interviewerName: interviewerName,
             interviewerEmail: interviewerGoogleCalendarId || '',
-            bookingId: event.id || ''
+            interviewerSlackMemberId: interviewerSlackMemberId,
+            adminPageUrl: Utils.getAdminPageUrl(interviewerId)
           });
         } catch (slackError) {
           Logger.log(`[WebhookHandler] Slack通知エラー（無視）: ${slackError.toString()}`);
@@ -243,12 +296,14 @@ const WebhookHandler = {
 
             if (Config.LSTEP_USE_TRIGGER_URL) {
               // トリガーURL経由（/friend/update が利用できない契約向け）
-              LStepApiService.triggerFriendUpdate(lineUid, {
+              const lstepData = {
                 meeting_date: meetingDate,
                 meeting_url: meetUrl || null,
                 meeting_cancel_url: guestCancelUrl || null,
                 tag: tagName
-              });
+              };
+              Logger.log(`[WebhookHandler] L-step に渡す data キー数: ${Object.keys(lstepData).length} (meeting_date, meeting_url, meeting_cancel_url, tag)`);
+              LStepApiService.triggerFriendUpdate(lineUid, lstepData);
               Logger.log(`[WebhookHandler] LステップトリガーURL連携成功: meeting_date=${meetingDate}, tag=${tagName}`);
             } else {
               // REST /friend/update 経由
@@ -368,19 +423,17 @@ const WebhookHandler = {
       
       // Slack通知を送信
       try {
-        // 面談担当者名を取得
+        // 面談者名・メール・Slackメンション用IDを取得
         let interviewerName = '未設定';
         let interviewerEmail = '';
+        let interviewerSlackMemberId = '';
         if (interview.data && interview.data.interviewerId) {
           const allInterviewers = AdminApiService.getAllInterviewers();
           const interviewer = allInterviewers.find(i => i.id === interview.data.interviewerId);
           if (interviewer) {
-            if (interviewer.name) {
-              interviewerName = interviewer.name;
-            }
-            if (interviewer.googleCalendarId) {
-              interviewerEmail = interviewer.googleCalendarId;
-            }
+            if (interviewer.name) interviewerName = interviewer.name;
+            if (interviewer.googleCalendarId) interviewerEmail = interviewer.googleCalendarId;
+            if (interviewer.slackMemberId) interviewerSlackMemberId = interviewer.slackMemberId;
           }
         }
         
@@ -389,7 +442,8 @@ const WebhookHandler = {
           dateTime: interview.data && interview.data.startAt ? interview.data.startAt.toISOString() : new Date().toISOString(),
           interviewerName: interviewerName,
           interviewerEmail: interviewerEmail,
-          bookingId: event.id || ''
+          interviewerSlackMemberId: interviewerSlackMemberId,
+          adminPageUrl: Utils.getAdminPageUrl(interview.data && interview.data.interviewerId ? interview.data.interviewerId : '')
         });
       } catch (slackError) {
         Logger.log(`[WebhookHandler] Slack通知エラー（無視）: ${slackError.toString()}`);
@@ -406,7 +460,7 @@ const WebhookHandler = {
               meeting_date: null,
               meeting_url: null,
               meeting_cancel_url: null
-            });
+            }, { useCancelUrl: true });
           } else {
             LStepApiService.updateFriendInfo(lineUid, {
               meeting_date: null,

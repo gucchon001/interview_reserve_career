@@ -2,7 +2,7 @@
 
 ## 1. 概要
 
-L-stepのWebhook転送機能を使用して、LINE公式アカウントで発生したイベント（ボタンタップ等）をGAS側で受信し、UIDを取得して面談予約システムにリダイレクトする仕組みです。
+L-stepのWebhook転送機能を使用して、LINE公式アカウントで発生したイベント（ボタンタップ等）をGAS側で受信し、UIDを取得して面談予約画面へつなぐ仕組みです。ユーザーがメッセージ内のリンク（`?from=line`）を開いたときは、リダイレクトせず予約画面のHTMLを直接返します（PC表示を避けるため）。
 
 ### 参考資料
 - [L-step Webhook転送機能の公式記事](https://linestep.jp/2025/06/13/lstep-webhook/)
@@ -53,16 +53,24 @@ https://script.google.com/a/macros/tomonokai-corp.com/s/AKfycb.../exec
 
 **推奨: postback ボタン ＋ シナリオでメッセージ送信**
 - **ボタン**: アクション postback、data `{"action":"booking","interviewer_id":"tanaka"}`（JSON文字列）
-- **シナリオ**: postback 受信 → テキスト＋URL のメッセージを送る。URL 例: `https://.../exec?action=lstep_webhook&interviewer_id=tanaka`
-- **流れ**: ①postback タップ → POST で UID・セッション作成 ②メッセージでURL受信 ③URLクリック → GET で interviewer_id に紐づくセッションを検索 → 予約ページへリダイレクト
+- **シナリオ**: postback 受信 → テキスト＋URL のメッセージを送る。
+- **メッセージ内のURL（ユーザーがクリックするリンク）**  
+  - **推奨（安全）**: `https://.../exec?from=line&session_id={SESSION_ID}`（SESSION_ID は Webhook レスポンス等で取得した値）。session_id を含めると、同時刻に他ユーザーが操作しても紐づきがずれない。  
+  - 従来: `https://.../exec?from=line`（必要なら `&interviewer_id=tanaka` を付与）。`?from=line` にするとモバイル表示になりやすい。  
+  - 代替: `https://.../exec?action=lstep_webhook&interviewer_id=tanaka`（一部環境でPC表示になる場合あり）
+- **流れ**: ①postback タップ → POST で UID・セッション作成 ②メッセージでURL受信 ③URLクリック → GET で **URLに session_id があればそれを使用**、なければ**直近2分以内の「postback」行1件**を取得（message 等の他イベント行は無視）→ 予約画面を直接表示（リダイレクトなし）。  
+  **⚠️ 同時利用時のリスク:** session_id をURLに含めない場合、セッション検索は「直近1件」のため、**同時刻に複数ユーザーが postback すると、別ユーザーのセッションが割り当てられ、誤ったユーザーにリマインダが送信される**事象が発生し得る。詳細は [INCIDENT_UID_MIXING_2026-02.md](../operations/INCIDENT_UID_MIXING_2026-02.md)。**可能であればメッセージ内URLに session_id を含めること。**
+  **【運用】session_id 無しの `?from=line` 単体利用時は同時利用禁止:** L-step で session_id 付きURLをメッセージに載せられない場合、**複数ユーザーが同時にボタンを押し・リンクを開く運用は行わないこと。** 同時利用が発生し得る環境では、API連携を停止するか、session_id 付きURLを送る方式への切り替えが必須。
+  **補足:** uidlog に interviewer_id は保存していないため、セッション検索は常に「直近1件」。interviewer_id は予約画面で表示するカレンダー（面談官）の指定用にのみ使用。
 
-### 3.3 面談予約URL（リダイレクト先）
+### 3.3 予約画面のパラメータ（session_id 付きURL）
 ```
-https://script.google.com/a/macros/tomonokai-corp.com/s/AKfycb.../exec?session_id={SESSION_ID}&interviewer_id={INTERVIEWER_ID}
+https://script.google.com/.../exec?session_id={SESSION_ID}&interviewer_id={INTERVIEWER_ID}
 ```
-- **用途**: `handleLStepWebhook`関数内で生成されるリダイレクト先（`Config.BOOKING_BASE_URL` を使用）
-- **生成タイミング**: Webhook転送受信後、セッションID生成後
-- **処理**: `handleBookingPage`関数が呼び出され、ユーザーが予約を行う
+- **用途**: 予約画面（`handleBookingPage`）が受け取るパラメータ。`session_id` で uid を復元し、`interviewer_id` で表示するカレンダー（面談官）を指定する。
+- **現在のフロー**: ユーザーがメッセージ内のリンクをクリックしたとき、**リダイレクトは行わない**。**URLに session_id があればそれを優先**し、なければ `getMostRecentSession(120)` で直近セッションを取得。**同一GETリクエスト内で** `handleBookingPage({ parameter: { session_id } })` を呼び、**予約画面のHTMLを直接返す**。session_id がURLに含まれる場合はブラウザのURLにも載る。中間でリダイレクトHTMLを返すと一部環境でPC表示になるため、直接表示にしている。
+- **補足**: `handleLStepWebhook` は、L-step がメッセージ用URLを取得できるよう、**レスポンスHTMLに session_id 付きURLを機械可読で埋め込んでいる**。L-step 側で「Webhook レスポンスからURLを取得してメッセージに埋め込む」機能があれば、そのURLを利用することで UID 混入を防げる。
+  - 埋め込み箇所: `<meta name="booking_url" content="...">`、`window.LSTEP_BOOKING_URL = "..."`（script）、`<!-- LSTEP_BOOKING_URL: ... -->`（コメント）。リダイレクト先URLは `?session_id=...&from=line`（および必要なら `&interviewer_id=...`）付き。
 
 ## 4. データフロー
 
@@ -77,21 +85,20 @@ https://script.google.com/a/macros/tomonokai-corp.com/s/AKfycb.../exec?session_i
   ↓
 【ステップ3】GAS側でWebhook転送を受信
   → doPost()関数が呼び出される
-  → action=lstep_webhookの場合、handleLStepWebhook()を実行
+  → POST本文がLINE形式（またはURLに action=lstep_webhook）なら handleLStepWebhook()を実行
   ↓
 【ステップ4】UIDの抽出とセッションID生成
   → POSTデータからUIDを抽出
   → セッションIDを生成（Utilities.getUuid()）
-  → CacheServiceとスプレッドシートに保存
+  → CacheServiceとuidlogに保存
   ↓
-【ステップ5】面談予約URLにリダイレクト
-  → セッションIDを含むURLを生成
-  → HTMLレスポンスでリダイレクト（meta refresh + JavaScript）
+【ステップ5】L-step がメッセージでURL送信 → ユーザーがURLをクリック（推奨: ?from=line&session_id=xxx）
+  → GET で URL の session_id を優先。無ければ直近2分以内のセッション1件を取得（同時利用時は混入リスクあり）
+  → リダイレクトは行わず、handleBookingPage(session_id) のHTMLを直接返す（PC表示回避）
   ↓
 【ステップ6】予約画面でUIDを取得
-  → handleBookingPage()関数が呼び出される
-  → セッションIDからUIDを取得（CacheService優先、スプレッドシートフォールバック）
-  → TimeRexウィジェットにUIDを渡す
+  → handleBookingPage() がセッションIDからUIDを取得（CacheService優先、uidlogフォールバック）
+  → TimeRexウィジェットに line_uid を渡す
 ```
 
 ### 4.2 詳細フロー
@@ -114,18 +121,18 @@ https://script.google.com/a/macros/tomonokai-corp.com/s/AKfycb.../exec?session_i
 #### ステップ4: UIDの保存
 - セッションIDを生成（`Utilities.getUuid()`）
 - CacheServiceに保存（高速取得用、10分有効期限）
-- スプレッドシートに保存（履歴用、UIDと名前を保存）
+- uidlogシートに保存（日時, uid, sessionid, イベント種別, friendid）
 
-#### ステップ5: リダイレクト / リンク送信
+#### ステップ5: リンク送信 → 予約画面を直接表示
 - **postback → メッセージでURL送信 → ユーザーがURLクリック**（推奨フロー）:
-  1. ユーザーが postback タップ → POST で UID 取得、セッション作成（interviewer_id を postback.data から取得）
-  2. L-step シナリオで「テキスト＋URL」のメッセージを送る（URL 例: `...?action=lstep_webhook&interviewer_id=tanaka`）
-  3. ユーザーがその URL をクリック → GET。interviewer_id で直近2分以内のセッションを検索し、予約ページへリダイレクト
+  1. ユーザーが postback タップ → POST で UID 取得、セッション作成（interviewer_id は postback.data から取得可能）
+  2. L-step シナリオで「テキスト＋URL」のメッセージを送る（URL 推奨: `...?from=line&session_id={SESSION_ID}`。SESSION_ID は Webhook レスポンス等から取得。含めない場合は従来どおり `...?from=line` も可だが同時利用で混入リスクあり）
+  3. ユーザーがその URL をクリック → GET。URL に session_id があればそれを使用、なければ直近2分以内のセッション1件を取得し、**リダイレクトせずに予約画面のHTMLを直接返す**（中間リダイレクトだとPC表示になるため）
 
 #### ステップ6: 予約画面でUID取得
-- `handleBookingPage()`関数が呼び出される
-- セッションIDからUIDを取得（CacheService優先、スプレッドシートフォールバック）
-- TimeRexウィジェットの`url_params`にUIDを設定
+- `handleBookingPage()` が doGet 内で `session_id` を引数に受け、呼び出される
+- セッションIDからUIDを取得（CacheService優先、uidlogフォールバック）
+- 取得した uid を userData.uid でテンプレートに渡し、TimeRexウィジェットの `url_params.line_uid` に設定
 
 ## 5. 実装仕様
 
@@ -162,8 +169,8 @@ function doGet(e) {
 function handleLStepWebhook(e) {
   // 1. POSTデータからUIDを抽出
   // 2. セッションIDを生成
-  // 3. CacheServiceとスプレッドシートに保存
-  // 4. 面談予約URLにリダイレクト
+  // 3. CacheServiceとuidlogに保存
+  // 4. レスポンスとしてリダイレクトHTMLを返す（このレスポンスはL-stepサーバーが受け取る。ユーザーはメッセージ内の ?from=line を開き、そのときは予約画面を直接表示）
 }
 ```
 
@@ -189,36 +196,48 @@ uid = parsedPayload.uid ||
 
 #### スプレッドシート（履歴用）
 - シート名: `uidlog`
-- カラム: `日時`, `uid`, `sessionid`, `イベント種別`
+- カラム: `日時`, `uid`, `sessionid`, `イベント種別`, `friendid`（friendid は L-step の Webhook 転送で届く場合のみ入り、多くの環境では空）
+- **friendid の取得**: ペイロード先頭の `friend_id` が無い場合、postback.data の JSON 内 `friend_id` キー、または `flex_code` に含まれる `_9桁数値_`（例: `flex_bubble..._239639916_pdvety` の 239639916）を友だちIDとして記録する。
 - 用途: 履歴保存、フォールバック、デバッグ
 
-### 5.4 リダイレクト処理
+### 5.4 handleLStepWebhook のレスポンス（参考）
 
-```javascript
-// Config.BOOKING_BASE_URL（デプロイURL）を使用。未設定時のみ scriptId で組み立てる
-const baseUrl = (Config.BOOKING_BASE_URL && Config.BOOKING_BASE_URL.trim()) !== ''
-  ? Config.BOOKING_BASE_URL.replace(/\/$/, '')
-  : `https://script.google.com/macros/s/${ScriptApp.getScriptId()}/exec`;
-const redirectUrl = `${baseUrl}?session_id=${sessionId}${interviewerId ? '&interviewer_id=' + interviewerId : ''}`;
+POST 受信時、`handleLStepWebhook` は「リダイレクト用HTML」を返す。**このレスポンスを受け取るのは L-step のサーバーであり、ユーザーのブラウザではない。** ユーザーが実際に開くのは、L-step シナリオで送られたメッセージ内のリンク（`?from=line`）であり、その GET では**リダイレクトせず予約画面のHTMLを直接返している**（PC表示を避けるため）。
 
-return HtmlService.createHtmlOutput(`
-  <!DOCTYPE html>
-  <html lang="ja">
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="refresh" content="0;url=${redirectUrl}">
-    <title>リダイレクト中...</title>
-  </head>
-  <body>
-    <p>リダイレクト中...</p>
-    <script>
-      window.location.href = '${redirectUrl}';
-    </script>
-  </body>
-  </html>
-`);
-```
+上記のため、ユーザーが「リダイレクト中」画面を見ることはない。GAS 側では session_id 付きURLをレスポンスHTML内に `meta name="booking_url"`・`window.LSTEP_BOOKING_URL`・HTMLコメントで埋め込んでいる。
+
+### 5.5 L-step で生成した乱数（または session_id）をメッセージのURLにセットできるか
+
+**結論:**  
+- **Webhook 転送の「レスポンス」をシナリオで参照する方法**は、公式仕様に記載がなく**要確認**（Webhook 転送は「L-step → 外部」の一方向と明記されているため、外部が返したレスポンスを L-step がシナリオで使えるかは未記載）。  
+- **API 連携（外部 → L-step）を使う方法**であれば、**生成した乱数や URL をメッセージに埋め込むことは公式に可能**である。
+
+#### 方法A: Webhook 転送のレスポンスをシナリオで使う（要確認）
+
+- L-step が「Webhook 転送で飛ばした先のレスポンス body」をシナリオで参照し、その中の値（例: 埋め込んだ booking_url）をメッセージの URL に使えるかは、**公式ドキュメントには記載がない**。  
+- 確認先: L-step マニュアル（シナリオ・アクション設定）、またはサポートへの問い合わせ。  
+- 可能な場合: GAS が返す HTML 内の `meta name="booking_url"` や `window.LSTEP_BOOKING_URL` を L-step が取得し、メッセージ内のリンクにその URL（乱数/session_id 付き）を設定する、という形が想定される。
+
+#### 方法B: API 連携で「メッセージ送信＋値の埋め込み」を行う（公式に可能）
+
+- L-step 公式ブログ（[API連携とは](https://linestep.jp/2025/12/08/lstep_api/)）では、**「取得した情報を、そのままメッセージに埋め込んで配信することもできます」** とされている。  
+- 流れのイメージ:  
+  1. ユーザーが postback → L-step が Webhook 転送で GAS に POST  
+  2. GAS が UID を取得し、**乱数（または session_id）を生成**し、CacheService・uidlog に保存  
+  3. GAS が **L-step の API 連携（トリガーURL）を呼び出し**、`uid` と「予約URL」（例: `booking_url` や `token` パラメータに `https://.../exec?from=line&token=12345678` を渡す）を送る  
+  4. L-step の連携アクションで「メッセージ送信」を設定し、**テキストの埋め込み情報**に上記パラメータを指定  
+  5. その結果、**生成した乱数入り URL がメッセージにセット**され、ユーザーに届く  
+
+- この場合、**L-step に「生成する乱数を URL にセット」させるのではなく、GAS が乱数を生成し、API 連携で L-step にその値を渡し、L-step がメッセージに埋め込む**形になる。  
+- 要件: API 連携の利用可能プラン、エンドポイント／パラメータ（例: `booking_url` または `token`）の作成、連携アクションで「メッセージ送信」＋「取得した情報の埋め込み」を設定。  
+- 注意: postback 受信時に「シナリオで固定メッセージを送る」のと「API 連携でメッセージを送る」の二重送信にならないよう、シナリオ側の送信条件を調整する必要がある（例: postback ではメッセージを送らず、GAS から API 連携でだけ送る）。
+
+#### 運用上の整理
+
+| 方式 | 乱数/URLをメッセージに載せられるか | 確認・対応 |
+|------|-----------------------------------|------------|
+| Webhook のレスポンスをシナリオで参照 | 仕様未記載のため**要確認** | L-step マニュアル・サポートで「Webhook 転送先のレスポンスをシナリオで使えるか」を確認 |
+| API 連携でトリガーにパラメータを渡す | **可能**（メッセージへの値埋め込み） | 実装済み。エンドポイント・パラメータ `booking_url` を用意し、GAS の `LSTEP_BOOKING_LINK_TRIGGER_URL` を設定すると postback 受信後にトリガーが呼ばれ、L-step がその URL をメッセージに埋めて送信する。設定手順は [LSTEP_BOOKING_LINK_API_SETUP.md](LSTEP_BOOKING_LINK_API_SETUP.md) を参照。 |
 
 ## 6. 設定手順
 
@@ -237,10 +256,10 @@ return HtmlService.createHtmlOutput(`
 
 1. L-step管理画面 > 「テンプレート」 > 新規作成
 2. フレックスメッセージまたはカルーセルメッセージで「予約する」ボタンを配置
-3. ボタンのアクション: 「URIアクション」を選択
-4. URI: **デプロイURL** + `?action=lstep_webhook&interviewer_id=xxx`（例: `getLStepWebhookEndpointUrl()` で表示されるURLに `&interviewer_id=tanaka` を付与）
-   - 注意: スクリプトID（`/macros/s/1LFzDp_.../exec`）ではなく**デプロイURL**（例: `/a/macros/ドメイン/s/デプロイID/exec`）を使用する
-   - `interviewer_id`は実際の面談官IDに置き換える
+3. ボタンのアクション: **postback** を推奨（URI だと doGet も飛び PC 表示になりやすい）
+4. シナリオで送るメッセージ内のURL: **デプロイURL** + `?from=line`（必要なら `&interviewer_id=tanaka`）。`?action=lstep_webhook` だと一部環境で PC 表示になるため `?from=line` を推奨
+   - 注意: スクリプトIDではなく**デプロイURL**を使用する
+   - `interviewer_id` は予約画面で表示するカレンダー（面談官）の指定用
    - 担当者ごとに異なるテンプレートを作成することを推奨
 5. 保存
 
@@ -335,10 +354,10 @@ runAllLStepSessionTests()
 - POSTデータの形式を確認（`uidlog` シートの `WEBHOOK_RECEIVED` 行）
 - L-step管理画面でWebhook転送が正しく設定されているか確認
 
-### 10.2 リダイレクトが動作しない場合
-- セッションIDが正しく生成されているか確認
-- リダイレクトURLが正しく生成されているか確認
-- ブラウザのコンソールでエラーを確認
+### 10.2 ?from=line で予約画面が出ない・「セッションが見つかりません」の場合
+- ボタンタップから2分以内にリンクをクリックしているか確認
+- uidlog に直近で postback の行が追加されているか確認（POST と GET で同じ SPREADSHEET_ID か確認。方法1のときは GET 側 GAS も同じスプレッドシートを参照すること）
+- メッセージ内のURLは `?from=line` を使用しているか（推奨）
 
 ### 10.3 セッションが保存されない場合
 - スプレッドシートの権限を確認

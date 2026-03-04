@@ -57,7 +57,7 @@ function setupInterviewersSheet(ss) {
     }
     
     // ヘッダー行を設定
-    const headerRange = sheet.getRange(1, 1, 1, 5);
+    const headerRange = sheet.getRange(1, 1, 1, 6);
     const headers = headerRange.getValues()[0];
     
     // ヘッダーが空または正しくない場合は設定
@@ -68,7 +68,8 @@ function setupInterviewersSheet(ss) {
         'name',                  // B列
         'timerex_config_id',     // C列
         'google_calendar_id',    // D列
-        'priority'               // E列（優先順位：低い数値ほど優先度が高い）
+        'priority',              // E列（優先順位：低い数値ほど優先度が高い）
+        'SLACK_MEMBER_ID'        // F列（Slackメンション用メンバーID）
       ]]);
       
       // ヘッダー行の書式設定
@@ -94,6 +95,14 @@ function setupInterviewersSheet(ss) {
         sheet.getRange(1, 5).setBackground('#F3F4F6');
         Logger.log('✓ priorityカラムを追加しました');
       }
+      // F列にSLACK_MEMBER_IDが無い場合のみ追加（既にユーザーが追加済みの場合は上書きしない）
+      if (existingHeaders.length < 6 || !existingHeaders[5] || existingHeaders[5] !== 'SLACK_MEMBER_ID') {
+        Logger.log('→ SLACK_MEMBER_IDカラムを追加中...');
+        sheet.getRange(1, 6).setValue('SLACK_MEMBER_ID');
+        sheet.getRange(1, 6).setFontWeight('bold');
+        sheet.getRange(1, 6).setBackground('#F3F4F6');
+        Logger.log('✓ SLACK_MEMBER_IDカラムを追加しました');
+      }
       Logger.log('✓ ヘッダー行は既に設定されています');
     }
     
@@ -103,6 +112,7 @@ function setupInterviewersSheet(ss) {
     sheet.setColumnWidth(3, 150); // timerex_config_id
     sheet.setColumnWidth(4, 200); // google_calendar_id
     sheet.setColumnWidth(5, 100); // priority
+    sheet.setColumnWidth(6, 120); // SLACK_MEMBER_ID
     
     return { success: true, sheet: sheet };
   } catch (error) {

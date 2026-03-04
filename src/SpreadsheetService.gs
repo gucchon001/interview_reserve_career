@@ -339,6 +339,7 @@ const SpreadsheetService = {
               name: row[Config.INTERVIEWERS_COLUMNS.NAME - 1],
               timerexConfigId: row[Config.INTERVIEWERS_COLUMNS.TIMEREX_CONFIG_ID - 1],
               googleCalendarId: row[Config.INTERVIEWERS_COLUMNS.GOOGLE_CALENDAR_ID - 1],
+              slackMemberId: (row[Config.INTERVIEWERS_COLUMNS.SLACK_MEMBER_ID - 1] || '').toString().trim(),
               priority: priority !== '' && priority !== null && priority !== undefined
                         ? Number(priority)
                         : Number.MAX_SAFE_INTEGER
@@ -396,6 +397,7 @@ const SpreadsheetService = {
           name: interviewerName,
           timerexConfigId: '',
           googleCalendarId: email,
+          slackMemberId: '',
           priority: priority
         }
       };
@@ -428,7 +430,8 @@ const SpreadsheetService = {
             id: row[Config.INTERVIEWERS_COLUMNS.ID - 1],
             name: row[Config.INTERVIEWERS_COLUMNS.NAME - 1],
             timerexConfigId: row[Config.INTERVIEWERS_COLUMNS.TIMEREX_CONFIG_ID - 1],
-            googleCalendarId: row[Config.INTERVIEWERS_COLUMNS.GOOGLE_CALENDAR_ID - 1]
+            googleCalendarId: row[Config.INTERVIEWERS_COLUMNS.GOOGLE_CALENDAR_ID - 1],
+            slackMemberId: (row[Config.INTERVIEWERS_COLUMNS.SLACK_MEMBER_ID - 1] || '').toString().trim()
           };
         }
       }
@@ -438,6 +441,64 @@ const SpreadsheetService = {
       Utils.logError('SpreadsheetService.getInterviewerById', e, { interviewerId });
       return null;
     }
+  },
+
+  /**
+   * template シートから予約URL送信対象のテンプレート一覧を取得
+   * @return {Array<{tag:string, name:string, outer_id:string}>} tag は postback.data に含まれる文字列（flex_code 等の接頭辞）
+   */
+  getBookingLinkTemplates() {
+    try {
+      const sheet = SpreadsheetService.getSheet(Config.SHEET_NAMES.TEMPLATE);
+      const dataRange = sheet.getDataRange();
+      const values = dataRange.getValues();
+      const rows = [];
+      for (let i = 1; i < values.length; i++) {
+        const row = values[i];
+        const tag = (row[Config.TEMPLATE_COLUMNS.TAG - 1] || '').toString().trim();
+        if (!tag) continue;
+        rows.push({
+          tag: tag,
+          name: (row[Config.TEMPLATE_COLUMNS.NAME - 1] || '').toString().trim(),
+          outer_id: (row[Config.TEMPLATE_COLUMNS.OUTER_ID - 1] || '').toString().trim()
+        });
+      }
+      return rows;
+    } catch (e) {
+      Utils.logError('SpreadsheetService.getBookingLinkTemplates', e, {});
+      return [];
+    }
+  },
+
+  /**
+   * postback.data 文字列に一致する template 行を検索し、outer_id（面談官ID）を返す
+   * 複数一致する場合は最も長い tag に一致した行の outer_id を返す
+   * @param {string} dataStr - postback.data の文字列
+   * @return {string} 一致した行の outer_id。未一致または空の場合は ''
+   */
+  getInterviewerIdForPostbackData(dataStr) {
+    if (!dataStr || typeof dataStr !== 'string') return '';
+    const templates = SpreadsheetService.getBookingLinkTemplates();
+    let matched = null;
+    let maxLen = 0;
+    for (const t of templates) {
+      if (t.tag && dataStr.indexOf(t.tag) !== -1 && t.tag.length > maxLen) {
+        maxLen = t.tag.length;
+        matched = t;
+      }
+    }
+    return matched ? (matched.outer_id || '') : '';
+  },
+
+  /**
+   * postback.data が template シートのいずれかの tag に一致するか
+   * @param {string} dataStr - postback.data の文字列
+   * @return {boolean}
+   */
+  isPostbackDataMatchingTemplate(dataStr) {
+    if (!dataStr || typeof dataStr !== 'string') return false;
+    const templates = SpreadsheetService.getBookingLinkTemplates();
+    return templates.some(t => t.tag && dataStr.indexOf(t.tag) !== -1);
   },
 
   /**
@@ -569,6 +630,7 @@ const SpreadsheetService = {
             name: row[Config.INTERVIEWERS_COLUMNS.NAME - 1],
             timerexConfigId: row[Config.INTERVIEWERS_COLUMNS.TIMEREX_CONFIG_ID - 1],
             googleCalendarId: row[Config.INTERVIEWERS_COLUMNS.GOOGLE_CALENDAR_ID - 1],
+            slackMemberId: (row[Config.INTERVIEWERS_COLUMNS.SLACK_MEMBER_ID - 1] || '').toString().trim(),
             rowIndex: i + 1 // 行番号（優先順位が同じ場合のソート用）
           };
           
@@ -740,7 +802,7 @@ const SpreadsheetService = {
 
   /**
    * uidlogシートを取得または作成
-   * フォーマット: 日時, uid, sessionid, イベント種別
+   * フォーマット: 日時, uid, sessionid, イベント種別, friendid
    * @return {Sheet} uidlogシート
    */
   getOrCreateUidlogSheet() {
@@ -748,8 +810,8 @@ const SpreadsheetService = {
     let uidlogSheet = ss.getSheetByName(Config.SHEET_NAMES.UIDLOG);
     if (!uidlogSheet) {
       uidlogSheet = ss.insertSheet(Config.SHEET_NAMES.UIDLOG);
-      uidlogSheet.appendRow(['日時', 'uid', 'sessionid', 'イベント種別']);
-      uidlogSheet.getRange(1, 1, 1, 4).setFontWeight('bold');
+      uidlogSheet.appendRow(['日時', 'uid', 'sessionid', 'イベント種別', 'friendid']);
+      uidlogSheet.getRange(1, 1, 1, 5).setFontWeight('bold');
     }
     return uidlogSheet;
   },
@@ -759,15 +821,16 @@ const SpreadsheetService = {
    * @param {string} uid - LINEユーザーID
    * @param {string} sessionId - セッションID
    * @param {string} eventType - イベント種別（postback, message 等）
+   * @param {string} [friendId] - L-stepのfriend_id（省略時は空。Webhook転送で届く場合のみ入る）
    * @return {boolean} 保存成功フラグ
    */
-  saveToUidlog(uid, sessionId, eventType = '') {
+  saveToUidlog(uid, sessionId, eventType = '', friendId = '') {
     try {
       const sheet = this.getOrCreateUidlogSheet();
       const now = new Date();
       const dateStr = Utilities.formatDate(now, Session.getScriptTimeZone() || 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
-      sheet.appendRow([dateStr, uid || '', sessionId || '', eventType || '']);
-      Logger.log(`[SpreadsheetService] uidlog saved: uid=${uid}, sessionid=${sessionId}, event=${eventType}`);
+      sheet.appendRow([dateStr, uid || '', sessionId || '', eventType || '', friendId || '']);
+      Logger.log(`[SpreadsheetService] uidlog saved: uid=${uid}, sessionid=${sessionId}, event=${eventType}, friendid=${friendId || '(empty)'}`);
       return true;
     } catch (error) {
       Utils.logError('SpreadsheetService.saveToUidlog', error, { uid, sessionId, eventType });
@@ -821,7 +884,9 @@ const SpreadsheetService = {
   },
 
   /**
-   * 直近のセッションを1件返す（uidlogの最新行から）
+   * 直近のセッションを1件返す（uidlogの最新行から、postback に限定）
+   * イベント種別が 'postback' の行のみ対象とする。message 等の他イベントが直後に記録されると
+   * 「直近1件」が他ユーザーのセッションになり混入するため、予約フローで発行するのは postback のみとする。
    * @param {number} withinSeconds - 何秒以内の記録を対象にするか（デフォルト120秒=2分）
    * @return {{sessionId: string, uid: string}|null}
    */
@@ -835,12 +900,16 @@ const SpreadsheetService = {
       const colSessionId = header.indexOf('sessionid') >= 0 ? header.indexOf('sessionid') : 2;
       const colUid = header.indexOf('uid') >= 0 ? header.indexOf('uid') : 1;
       const colDate = header.indexOf('日時') >= 0 ? header.indexOf('日時') : 0;
+      const colEventType = header.indexOf('イベント種別') >= 0 ? header.indexOf('イベント種別') : 3;
 
       const now = new Date();
       const cutoff = new Date(now.getTime() - withinSeconds * 1000);
 
       for (let i = data.length - 1; i >= 1; i--) {
         const row = data[i];
+        const eventType = (row[colEventType] || '').toString().trim();
+        if (eventType !== 'postback') continue;
+
         const uid = (row[colUid] || '').toString().trim();
         const sessionId = (row[colSessionId] || '').toString().trim();
         if (!uid || !sessionId) continue;

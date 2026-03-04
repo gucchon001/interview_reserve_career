@@ -76,6 +76,9 @@ clasp logs --watch
 - [ ] Webhookが正常に受信されているか
 - [ ] 該当レコードの`status`が3（キャンセル）に更新されているか
 
+**TimeRex・L-step 連携（予約キャンセル〜リマインド解除）の詳細なテスト手順:**  
+[docs/operations/TIMEREX_LSTEP_TEST_PROCEDURE.md](docs/operations/TIMEREX_LSTEP_TEST_PROCEDURE.md) を参照（モック・E2E・キャンセル時の L-step 友だち情報クリア確認を含む）。
+
 #### 2.3 セキュリティトークン検証
 
 **テスト手順:**
@@ -169,6 +172,115 @@ runAdminPageIntegrationTest();
 - [ ] Webhookが正常に受信されるか
 - [ ] `interviews`シートに新しいレコードが追加されるか
 - [ ] すべてのカラムが正しく記録されているか
+
+#### 3.5 L-step session_id リダイレクト（interviewer_id なし）
+
+**目的:** L-step の Webhook 受信で uidlog に保存した `session_id` が、`?action=lstep_webhook` のみの GET で正しくリダイレクトに含まれるかを検証する。
+
+**テスト手順:**
+1. GAS エディタで **`runLStepSessionIdRedirectWithoutInterviewerIdTest`** を選択して実行
+2. 実行ログで「テスト結果: 成功」を確認
+
+**確認項目:**
+- [ ] `handleLStepWebhook` で uidlog に session_id が保存される
+- [ ] `doGet({ from: 'line' })`（interviewer_id なし）のレスポンスが予約画面で、直近セッションの uid が含まれる
+
+#### 3.5a 個別面談者（interviewer_id）予約画面テスト
+
+**目的:** 特定の面談官（例: y_haraguchi）を指定したときに、予約画面でその面談官の個別カレンダーが表示されることを検証する。
+
+**テスト手順:**
+1. `interviewers` シートに対象面談官が登録されていることを確認（id, name, timerex_config_id, google_calendar_id など）
+2. GAS エディタで **`runBookingPageWithInterviewerIdTest()`** を選択して実行（省略時は `y_haraguchi` を対象）
+3. 別の面談官IDで試す場合: **`runBookingPageWithInterviewerIdTest('g_kawasaki')`** のように引数で指定して実行
+4. 実行ログで「テスト結果: 成功」を確認
+
+**確認項目:**
+- [ ] 指定した面談官が interviewers シートに存在する
+- [ ] その面談官の `timerex_config_id` が設定されている
+- [ ] `handleBookingPage({ interviewer_id: 'y_haraguchi' })` のレスポンスHTMLに、個別カレンダー用の TimeRex URL が含まれる
+- [ ] HTML に「面談官IDが見つかりません」「TimeRex設定が完了していません」のエラーが含まれない
+
+**ブラウザで確認する場合:** 予約画面のURLに `&interviewer_id=y_haraguchi` を付けてアクセスし、該当面談官のカレンダーのみ表示されることを確認する。
+
+#### 3.6 session_id から uid 取得（予約画面への受け渡し）
+
+**目的:** session_id を元に uid を取得し、予約画面の HTML に渡せているかを検証する。
+
+**テスト手順:**
+1. GAS エディタで **`runLStepSessionIdToUidTest`** を選択して実行
+2. 実行ログで「テスト結果: 成功」を確認
+
+**確認項目:**
+- [ ] uidlog と Cache に保存した session_id で handleBookingPage を呼ぶと、返却 HTML にその uid が含まれる（TimeRex の line_uid に渡る前提）
+
+#### 3.7 L-step 連携 単体テスト（データ取得・ペイロード・型の検証）
+
+**目的:** API から正しくデータを取得できているか、想定どころにデータが格納されているか、型が正しいかをステップごとに検証する。ネットワークを張らずに実行可能。
+
+**一括実行:**
+```javascript
+// 4 種類の単体テストを順に実行
+runLStepUnitTests();
+```
+
+**個別実行:**
+```javascript
+// 1. url_params から line_uid 取得（配列・オブジェクト・null）
+runGetUrlParamValueTest();
+
+// 2. 日時フォーマット（Date / ISO8601 → "YYYY-MM-DD HH:mm:ss"）
+runFormatDateTimeForLStepTest();
+
+// 3. トリガーペイロード組み立て（meeting_date, 面談日時, meeting_url, ミーティングURL, ...）
+runLStepTriggerPayloadBuildTest();
+
+// 4. Webhook event から L-step 用データ抽出（line_uid, 面談日時, URL 等）
+runWebhookEventToLStepDataExtractionTest();
+```
+
+**確認項目:**
+- [ ] `runGetUrlParamValueTest`: 配列・オブジェクト・null の各形式で line_uid が取得できる
+- [ ] `runFormatDateTimeForLStepTest`: 日時が "YYYY-MM-DD HH:mm:ss" 形式で、予約日時がそのまま格納される
+- [ ] `runLStepTriggerPayloadBuildTest`: ペイロードに uid, meeting_date, 面談日時, meeting_url, ミーティングURL, meeting_cancel_url, キャンセル用URL, tag, 付与するタグ名 が含まれる
+- [ ] `runWebhookEventToLStepDataExtractionTest`: モック event から line_uid・面談日時・ミーティングURL・キャンセルURL が正しく抽出され、ペイロードに反映される
+
+#### 3.8 予約URL送信（API連携）のテスト
+
+**目的:** postback 受信後に GAS が L-step の「予約URL送信」トリガーを呼び出し、session_id 付きURLがユーザーにメッセージで届く流れを検証する。UID 混入防止のため、メッセージ内のリンクに session_id が含まれることを確認する。
+
+**前提:**
+- [LSTEP_BOOKING_LINK_API_SETUP.md](docs/lstep/LSTEP_BOOKING_LINK_API_SETUP.md) に従い、L-step でエンドポイント・パラメータ `booking_url`・連携アクション（メッセージ送信＋埋め込み）を設定済みであること
+- GAS のスクリプトプロパティに `LSTEP_BOOKING_LINK_TRIGGER_URL` を設定済みであること
+
+**テスト手順（実機）:**
+1. LINE で予約ボタン（postback）をタップ
+2. 数秒以内に **「予約はこちらから」等、booking_url が埋め込まれたメッセージ** が届くことを確認
+3. そのメッセージ内のリンクをタップし、開いた予約画面の URL に **`session_id=`** が含まれることを確認
+4. uidlog シートで、直近の postback 行の直後に **イベント種別が `BOOKING_LINK_SENT`** の行が記録されていることを確認（トリガー成功時）
+
+**テスト手順（GAS のみ・トリガー呼び出しの確認）:**
+1. GAS エディタで **`runLStepBookingLinkTriggerTest`** を選択して実行（引数なしでサンプル UID、または `runLStepBookingLinkTriggerTest('Uxxxxxxxx')` で指定 UID）
+2. 実行ログで「✓ 成功」を確認
+3. 指定した UID の LINE で、session_id 付きURLが埋め込まれたメッセージが届くことを確認
+
+**確認項目:**
+- [ ] postback 後に LINE に「予約URL付きメッセージ」が1通届く
+- [ ] そのメッセージのリンクに `session_id=` が含まれる
+- [ ] リンクを開くと、当該 session の uid で予約画面が表示される（他ユーザーのセッションになっていない）
+- [ ] uidlog に `BOOKING_LINK_SENT` または（エラー時）`BOOKING_LINK_ERROR` が記録される
+
+**注意:** `LSTEP_BOOKING_LINK_TRIGGER_URL` を未設定の場合は、従来どおり「予約URL送信トリガーは呼ばれない」動作になる。その場合も postback と uidlog への保存は成功する。
+
+#### 3.8.1 doPost 実行確認（実行一覧に doPost が出ない場合）
+
+GAS の「実行数」一覧に doPost が表示されないことがある。以下で「doPost が呼ばれたか」を確認できる。
+
+1. **uidlog で WEBHOOK_RAW を確認**  
+   postback した時刻付近に、`WEBHOOK_RAW: v... params=[...] len=...` の行があれば、そのリクエストで doPost は実行されている。
+2. **ScriptProperties の LAST_DOPOST_AT を確認**  
+   doPost の先頭で `LAST_DOPOST_AT` に実行時刻（ISO 文字列）を書き込んでいる。  
+   postback を1回実行したあと、GAS の「プロジェクトの設定」→「スクリプト プロパティ」で `LAST_DOPOST_AT` の値を確認する。postback した時刻に更新されていれば、doPost は呼ばれている（＝実行一覧の表示問題）。
 
 ### 5. 管理画面（Admin.html）画面表示確認 🔄
 

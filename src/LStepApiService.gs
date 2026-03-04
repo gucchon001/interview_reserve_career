@@ -267,29 +267,72 @@ const LStepApiService = {
   },
 
   /**
-   * トリガーURLへPOSTして友だち情報更新・タグを反映する（/friend/update が利用できない契約向け）
-   * L-step エンドポイントの「パラメータ管理」で登録したJSONキー（meeting_date, meeting_url, meeting_cancel_url, tag 等）をそのまま送る
+   * トリガーURL用のペイロードオブジェクトを組み立てる（単体テスト・検証用。実際の送信は triggerFriendUpdate）
+   * L-step の cURL サンプルでは params がオブジェクト型なので、params オブジェクトにも同じ内容を入れる
    * @param {string} uid - LINEユーザーID
-   * @param {Object} data - 送信するデータ（meeting_date, meeting_url, meeting_cancel_url, tag 等。null でクリア）
+   * @param {Object} data - 送信するデータ（meeting_date, meeting_url, meeting_cancel_url, tag 等）
+   * @return {Object} POST ボディ（uid, params: { meeting_date, 面談日時, ... }, およびルート直下のキー）
+   */
+  buildTriggerPayload(uid, data) {
+    const payload = { uid: String(uid) };
+    const params = {};
+    if (data && typeof data === 'object') {
+      if (Object.prototype.hasOwnProperty.call(data, 'meeting_date')) {
+        payload.meeting_date = data.meeting_date;
+        payload.meetingDate = data.meeting_date;
+        payload['面談日時'] = data.meeting_date;
+        params.meeting_date = data.meeting_date;
+        params.meetingDate = data.meeting_date;
+        params['面談日時'] = data.meeting_date;
+      }
+      if (Object.prototype.hasOwnProperty.call(data, 'meeting_url')) {
+        payload.meeting_url = data.meeting_url;
+        payload.meetingUrl = data.meeting_url;
+        payload['ミーティングURL'] = data.meeting_url;
+        params.meeting_url = data.meeting_url;
+        params.meetingUrl = data.meeting_url;
+        params['ミーティングURL'] = data.meeting_url;
+      }
+      if (Object.prototype.hasOwnProperty.call(data, 'meeting_cancel_url')) {
+        payload.meeting_cancel_url = data.meeting_cancel_url;
+        payload.meetingCancelUrl = data.meeting_cancel_url;
+        payload['キャンセル用URL'] = data.meeting_cancel_url;
+        params.meeting_cancel_url = data.meeting_cancel_url;
+        params.meetingCancelUrl = data.meeting_cancel_url;
+        params['キャンセル用URL'] = data.meeting_cancel_url;
+      }
+      if (Object.prototype.hasOwnProperty.call(data, 'tag')) {
+        payload.tag = data.tag;
+        payload['付与するタグ名'] = data.tag;
+        params.tag = data.tag;
+        params['付与するタグ名'] = data.tag;
+      }
+    }
+    payload.params = params;
+    return payload;
+  },
+
+  /**
+   * 予約URL送信用トリガーへPOSTする（API連携で「メッセージに booking_url を埋め込んで送信」する用）
+   * L-step 側でエンドポイントにパラメータ booking_url を登録し、連携アクションで「メッセージ送信＋取得した情報の埋め込み」を設定すること
+   * @param {string} uid - LINEユーザーID
+   * @param {string} bookingUrl - 予約画面のURL（session_id 付き。例: https://.../exec?session_id=xxx&from=line）
    * @return {Object} レスポンス data
    */
-  triggerFriendUpdate(uid, data) {
+  triggerBookingLinkMessage(uid, bookingUrl) {
     if (!uid) {
       throw new Error('uidが指定されていません');
     }
+    const triggerUrl = PropertiesService.getScriptProperties().getProperty(Config.PROPERTY_KEYS.LSTEP_BOOKING_LINK_TRIGGER_URL) || '';
+    if (!triggerUrl || !triggerUrl.trim()) {
+      throw new Error('LSTEP_BOOKING_LINK_TRIGGER_URL が設定されていません。予約URL送信用のL-step エンドポイントのトリガーURLをスクリプトプロパティに設定してください。');
+    }
+    const payload = {
+      uid: String(uid),
+      booking_url: bookingUrl || '',
+      params: { booking_url: bookingUrl || '' }
+    };
     const apiKey = this._getApiKey();
-    const triggerUrl = PropertiesService.getScriptProperties().getProperty(Config.PROPERTY_KEYS.LSTEP_TRIGGER_URL)
-      || (Config.LSTEP_TRIGGER_URL_DEFAULT && Config.LSTEP_TRIGGER_URL_DEFAULT.trim()) || '';
-    if (!triggerUrl) {
-      throw new Error('LステップトリガーURLが設定されていません。LSTEP_TRIGGER_URL または Config.LSTEP_TRIGGER_URL_DEFAULT を設定してください。');
-    }
-    const payload = { uid: uid };
-    if (data && typeof data === 'object') {
-      if (Object.prototype.hasOwnProperty.call(data, 'meeting_date')) payload.meeting_date = data.meeting_date;
-      if (Object.prototype.hasOwnProperty.call(data, 'meeting_url')) payload.meeting_url = data.meeting_url;
-      if (Object.prototype.hasOwnProperty.call(data, 'meeting_cancel_url')) payload.meeting_cancel_url = data.meeting_cancel_url;
-      if (Object.prototype.hasOwnProperty.call(data, 'tag')) payload.tag = data.tag;
-    }
     const maxRetries = Config.SETTINGS.MAX_RETRY_COUNT || 3;
     const baseRetryDelay = 1000;
     let lastError = null;
@@ -305,6 +348,98 @@ const LStepApiService = {
           payload: JSON.stringify(payload),
           muteHttpExceptions: true
         };
+        Logger.log('[LStepApiService] 予約URL送信トリガー: uid=' + uid + ', url length=' + (bookingUrl || '').length);
+        const response = UrlFetchApp.fetch(triggerUrl, options);
+        const code = response.getResponseCode();
+        const text = response.getContentText();
+        if (code >= 200 && code < 300) {
+          Logger.log('[LStepApiService] 予約URL送信トリガー成功 (HTTP ' + code + ')');
+          return text ? (Utils.safeJsonParse(text) || {}) : {};
+        }
+        const errData = (text && text.trim()) ? (Utils.safeJsonParse(text) || { message: text }) : { message: '' };
+        const error = new Error('Lステップ予約URL送信トリガーエラー: ' + code + ' - ' + JSON.stringify(errData));
+        if ((code === 429 || code >= 500) && attempt < maxRetries) {
+          const delay = baseRetryDelay * Math.pow(2, attempt - 1);
+          Logger.log('[LStepApiService] リトライ ' + attempt + '/' + maxRetries + ' (' + delay + 'ms)');
+          Utilities.sleep(delay);
+          lastError = error;
+          continue;
+        }
+        Logger.log('[LStepApiService] 予約URL送信トリガー失敗: ' + error.message);
+        throw error;
+      } catch (e) {
+        if (attempt < maxRetries) {
+          const delay = baseRetryDelay * Math.pow(2, attempt - 1);
+          Logger.log('[LStepApiService] リトライ ' + attempt + '/' + maxRetries + ': ' + e.message);
+          lastError = e;
+          continue;
+        }
+        Utils.logError('LStepApiService.triggerBookingLinkMessage', e, { uid });
+        throw e;
+      }
+    }
+    throw lastError || new Error('Lステップ予約URL送信トリガー呼び出しに失敗しました');
+  },
+
+  /**
+   * トリガーURLへPOSTして友だち情報更新・タグを反映する（/friend/update が利用できない契約向け）
+   * L-step エンドポイントの「パラメータ管理」で登録したJSONキー（meeting_date, meeting_url, meeting_cancel_url, tag 等）をそのまま送る
+   * @param {string} uid - LINEユーザーID
+   * @param {Object} data - 送信するデータ（meeting_date, meeting_url, meeting_cancel_url, tag 等。null でクリア）
+   * @param {Object} [options] - オプション。useCancelUrl: true のときキャンセル用トリガーURL（LSTEP_CANCEL_TRIGGER_URL）を使用。未設定時は LSTEP_TRIGGER_URL にフォールバック
+   * @return {Object} レスポンス data
+   */
+  triggerFriendUpdate(uid, data, options) {
+    if (!uid) {
+      throw new Error('uidが指定されていません');
+    }
+    const apiKey = this._getApiKey();
+    const useCancelUrl = options && options.useCancelUrl === true;
+    let triggerUrl = '';
+    if (useCancelUrl) {
+      triggerUrl = PropertiesService.getScriptProperties().getProperty(Config.PROPERTY_KEYS.LSTEP_CANCEL_TRIGGER_URL) || '';
+    }
+    if (!triggerUrl || !triggerUrl.trim()) {
+      triggerUrl = PropertiesService.getScriptProperties().getProperty(Config.PROPERTY_KEYS.LSTEP_TRIGGER_URL)
+        || (Config.LSTEP_TRIGGER_URL_DEFAULT && Config.LSTEP_TRIGGER_URL_DEFAULT.trim()) || '';
+    }
+    if (!triggerUrl) {
+      throw new Error('LステップトリガーURLが設定されていません。LSTEP_TRIGGER_URL または Config.LSTEP_TRIGGER_URL_DEFAULT を設定してください。');
+    }
+    if (useCancelUrl) {
+      Logger.log('[LStepApiService] キャンセル用トリガーURLを使用: ' + (PropertiesService.getScriptProperties().getProperty(Config.PROPERTY_KEYS.LSTEP_CANCEL_TRIGGER_URL) ? 'LSTEP_CANCEL_TRIGGER_URL' : 'LSTEP_TRIGGER_URL（フォールバック）'));
+    }
+    const payload = this.buildTriggerPayload(uid, data);
+    const paramKeys = payload.params && typeof payload.params === 'object' && !Array.isArray(payload.params)
+      ? Object.keys(payload.params) : [];
+    const hasData = data && typeof data === 'object' && (
+      Object.prototype.hasOwnProperty.call(data, 'meeting_date') ||
+      Object.prototype.hasOwnProperty.call(data, 'meeting_url') ||
+      Object.prototype.hasOwnProperty.call(data, 'meeting_cancel_url') ||
+      Object.prototype.hasOwnProperty.call(data, 'tag')
+    );
+    if (hasData && paramKeys.length === 0) {
+      Logger.log('[LStepApiService] エラー: data に値があるのに params が空です。L-step でパラメータが表示されません。');
+      throw new Error('L-step トリガー: params が空です。buildTriggerPayload の結果を確認してください。');
+    }
+    Logger.log('[LStepApiService] 送信 params キー数: ' + paramKeys.length + ' (' + paramKeys.join(', ') + ')');
+    const maxRetries = Config.SETTINGS.MAX_RETRY_COUNT || 3;
+    const baseRetryDelay = 1000;
+    let lastError = null;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const options = {
+          method: 'post',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          payload: JSON.stringify(payload),
+          muteHttpExceptions: true
+        };
+        Logger.log('[LStepApiService] 送信ペイロード: ' + JSON.stringify(payload));
+        Logger.log('[LStepApiService] 送信 params 内容: ' + JSON.stringify(payload.params));
         const response = UrlFetchApp.fetch(triggerUrl, options);
         const code = response.getResponseCode();
         const text = response.getContentText();
