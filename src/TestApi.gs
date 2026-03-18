@@ -345,27 +345,30 @@ function runWebhookTokenTest() {
 }
 
 /**
- * Slack Webhook URL（SLACK_WEBHOOK_URL）のスクリプトプロパティ確認とテスト送信
+ * Slack Bot Token（SLACK_BOT_TOKEN）のスクリプトプロパティ確認とテスト送信
  * 実行: エディタで runSlackWebhookTest を選択して実行
- * 事前に「スクリプトのプロパティ」に SLACK_WEBHOOK_URL を設定してください。
+ * 事前に「スクリプトのプロパティ」に SLACK_BOT_TOKEN と SLACK_CHANNEL_ID を設定してください。
  * @param {boolean} [sendTestMessage=true] - true のときテスト通知をSlackに送信する。false のときはプロパティ確認のみ
  * @return {boolean} プロパティが設定され、（送信する場合）送信が成功したら true
  */
 function runSlackWebhookTest(sendTestMessage) {
-  Logger.log('=== Slack Webhook（SLACK_WEBHOOK_URL）テスト ===');
+  Logger.log('=== Slack Bot Token（SLACK_BOT_TOKEN）テスト ===');
   Logger.log('');
 
   try {
-    const url = SlackService.getWebhookUrl();
-    if (!url) {
-      Logger.log('✗ SLACK_WEBHOOK_URL がスクリプトプロパティに設定されていません');
+    const token = SlackService.getBotToken();
+    if (!token) {
+      Logger.log('✗ SLACK_BOT_TOKEN がスクリプトプロパティに設定されていません');
       Logger.log('  設定手順: エディタ → プロジェクトの設定 → スクリプトのプロパティ → プロパティを追加');
-      Logger.log('  キー: SLACK_WEBHOOK_URL');
-      Logger.log('  値: https://hooks.slack.com/services/... （SlackのIncoming Webhook URL）');
+      Logger.log('  キー: SLACK_BOT_TOKEN');
+      Logger.log('  値: xoxb-... （SlackアプリのBot User OAuth Token）');
+      Logger.log('');
+      Logger.log('  ※ SLACK_CHANNEL_ID も設定してください（未設定時はデフォルト C0AMC7S8BT6 を使用）');
       return false;
     }
-    Logger.log('✓ SLACK_WEBHOOK_URL が設定されています');
-    Logger.log(`  先頭: ${url.substring(0, 40)}...`);
+    Logger.log('✓ SLACK_BOT_TOKEN が設定されています');
+    Logger.log(`  先頭: ${token.substring(0, 20)}...`);
+    Logger.log(`  通知先チャネルID: ${SlackService.getChannelId()}`);
     Logger.log('');
 
     const doSend = sendTestMessage !== false;
@@ -397,7 +400,7 @@ function runSlackWebhookTest(sendTestMessage) {
     });
     Logger.log('✓ 予約キャンセルテスト通知の送信が完了しました。');
     Logger.log('');
-    Logger.log('=== Slack Webhook テスト完了 ===');
+    Logger.log('=== Slack Bot Token テスト完了 ===');
     return true;
   } catch (error) {
     Logger.log(`✗ エラー: ${error.toString()}`);

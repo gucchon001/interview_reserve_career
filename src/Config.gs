@@ -13,7 +13,8 @@ const Config = {
     TIMEREX_TEAM_CALENDAR_URL_PATH: 'TIMEREX_TEAM_CALENDAR_URL_PATH', // 統合カレンダーURL
     LINE_ACCESS_TOKEN: 'LINE_ACCESS_TOKEN', // 必要に応じて
     SPREADSHEET_ID: 'SPREADSHEET_ID',
-    SLACK_WEBHOOK_URL: 'SLACK_WEBHOOK_URL', // Slack通知用Webhook URL
+    SLACK_BOT_TOKEN: 'SLACK_BOT_TOKEN',     // Slack通知用Bot Token（xoxb-...）
+    SLACK_CHANNEL_ID: 'SLACK_CHANNEL_ID',   // Slack通知先チャネルID
     LSTEP_API_KEY: 'LSTEP_API_TOKEN', // LステップAPIトークン（スクリプトプロパティ名）
     LSTEP_TRIGGER_URL: 'LSTEP_TRIGGER_URL', // ⑤のcURLサンプルで取得したトリガーURL（予約確定時の友だち情報・タグ用）
     LSTEP_CANCEL_TRIGGER_URL: 'LSTEP_CANCEL_TRIGGER_URL', // キャンセル時の友だち情報クリア用トリガーURL。未設定時は LSTEP_TRIGGER_URL を使用（後方互換）

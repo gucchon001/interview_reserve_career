@@ -5,11 +5,19 @@
 
 const SlackService = {
   /**
-   * Webhook URL（PropertiesServiceから取得）
+   * Bot Token（PropertiesServiceから取得）
    */
-  getWebhookUrl() {
+  getBotToken() {
     const props = PropertiesService.getScriptProperties();
-    return props.getProperty(Config.PROPERTY_KEYS.SLACK_WEBHOOK_URL) || null;
+    return props.getProperty(Config.PROPERTY_KEYS.SLACK_BOT_TOKEN) || null;
+  },
+
+  /**
+   * チャネルID（PropertiesServiceから取得、未設定時はデフォルト値）
+   */
+  getChannelId() {
+    const props = PropertiesService.getScriptProperties();
+    return props.getProperty(Config.PROPERTY_KEYS.SLACK_CHANNEL_ID) || 'C0AMC7S8BT6';
   },
 
   /**
@@ -158,30 +166,40 @@ const SlackService = {
   },
 
   /**
-   * Slackにメッセージを送信
+   * Slackにメッセージを送信（Bot Token + chat.postMessage API）
    * @private
    */
   _sendToSlack(message) {
-    const url = this.getWebhookUrl();
-    if (!url) {
-      console.error('Slack Webhook URLが設定されていません');
+    const token = this.getBotToken();
+    if (!token) {
+      console.error('Slack Bot Token（SLACK_BOT_TOKEN）が設定されていません');
       return;
     }
 
+    const payload = Object.assign({
+      channel: this.getChannelId(),
+      username: '面談予約システム',
+      icon_emoji: ':calendar:'
+    }, message);
+
     const options = {
       method: 'post',
-      contentType: 'application/json',
-      payload: JSON.stringify(message),
+      contentType: 'application/json; charset=utf-8',
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
+      payload: JSON.stringify(payload),
       muteHttpExceptions: true
     };
 
-    const response = UrlFetchApp.fetch(url, options);
+    const response = UrlFetchApp.fetch('https://slack.com/api/chat.postMessage', options);
     const responseCode = response.getResponseCode();
-    
-    if (responseCode !== 200) {
-      const responseText = response.getContentText();
-      console.error(`Slack通知失敗: ${responseCode} - ${responseText}`);
-      throw new Error(`Slack通知失敗: ${responseCode}`);
+    const result = JSON.parse(response.getContentText());
+
+    if (responseCode !== 200 || !result.ok) {
+      const errMsg = result.error || `HTTP ${responseCode}`;
+      console.error(`Slack通知失敗: ${errMsg}`);
+      throw new Error(`Slack通知失敗: ${errMsg}`);
     }
   }
 };
