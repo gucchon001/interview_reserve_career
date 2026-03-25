@@ -89,6 +89,9 @@ const Config = {
     BOOKING_CONFIRMED: '面談予約済み' // 予約確定時に設置するタグ名
   },
 
+  /** L-step の meeting_date 文字列化に使うタイムゾーン（TimeRex カレンダーが JST 前提のため、GAS プロジェクトのタイムゾーンに依存させない） */
+  LSTEP_MEETING_DATE_TIMEZONE: 'Asia/Tokyo',
+
   // LステップAPI トリガーURL（runLStepApiTriggerTest のデフォルト。プロパティ・引数未設定時のみ使用）
   LSTEP_TRIGGER_URL_DEFAULT: 'https://api.lineml.jp/v1/api-codes/690/triggers/c4faddc7-b837-4637-b481-eaab5777af2a',
 

@@ -244,7 +244,7 @@ const LStepApiService = {
    */
   formatDateTimeForLStep(datetime) {
     let date;
-    
+
     if (datetime instanceof Date) {
       date = datetime;
     } else if (typeof datetime === 'string') {
@@ -256,14 +256,9 @@ const LStepApiService = {
       throw new Error(`無効な日時型: ${typeof datetime}`);
     }
 
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    const seconds = String(date.getSeconds()).padStart(2, '0');
-
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    // Date#getHours 等は Session のプロジェクトタイムゾーン依存。米東部等だと JST 15:00 が 02:00 として送られるため、常に JST で整形する
+    const tz = Config.LSTEP_MEETING_DATE_TIMEZONE || 'Asia/Tokyo';
+    return Utilities.formatDate(date, tz, 'yyyy-MM-dd HH:mm:ss');
   },
 
   /**
