@@ -315,10 +315,16 @@ const SpreadsheetService = {
    */
   registerInterviewerByEmail(email) {
     try {
-      if (!email || !Utils.isValidEmail(email)) {
-        Utils.logError('SpreadsheetService.registerInterviewerByEmail', new Error('Invalid email'), { email });
+      const trimmed = email != null ? String(email).trim() : '';
+      // Web アプリが USER_DEPLOYING のとき、Webhook や未ログイン閲覧では getActiveUser().getEmail() が空になり得る。ERROR ログはノイズになるため出さない。
+      if (!trimmed) {
         return { isNew: false, interviewer: null };
       }
+      if (!Utils.isValidEmail(trimmed)) {
+        Utils.logError('SpreadsheetService.registerInterviewerByEmail', new Error('Invalid email'), { email: trimmed });
+        return { isNew: false, interviewer: null };
+      }
+      email = trimmed;
       
       // interviewersシートを取得
       const sheet = SpreadsheetService.getSheet(Config.SHEET_NAMES.INTERVIEWERS);
