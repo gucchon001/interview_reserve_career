@@ -113,7 +113,16 @@ function handleLStepWebhook(e) {
     } else {
       Logger.log('[handleLStepWebhook] ⚠️ POST Data is not available');
     }
-    
+
+    // 直接AG申込（jukust_career-agent-portal）: ag:v1: postback は面接セッションを汚さず Vercel に中継のみ
+    if (e.postData && e.postData.contents) {
+      if (isAgApplicationLineWebhookPayload_(e.postData.contents)) {
+        Logger.log('[handleLStepWebhook] AG申込 postback (ag:v1:) → Vercel 中継のうえ面接フローをスキップ');
+        relayRawLineWebhookToAgPortal_(e.postData.contents);
+        return agPortalRelayMinimalOkHtml_();
+      }
+    }
+
     // LステップのWebhook転送からUIDを取得
     // 注意: ボタンがURIの場合はブラウザでGETが飛ぶためPOSTが来ないことがある。L-stepがPOSTで転送する場合は別リクエストで届く。
     let uid = '';

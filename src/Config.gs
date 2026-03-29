@@ -20,6 +20,8 @@ const Config = {
     LSTEP_CANCEL_TRIGGER_URL: 'LSTEP_CANCEL_TRIGGER_URL', // キャンセル時の友だち情報クリア用トリガーURL。未設定時は LSTEP_TRIGGER_URL を使用（後方互換）
     LSTEP_BOOKING_LINK_TRIGGER_URL: 'LSTEP_BOOKING_LINK_TRIGGER_URL', // 予約URL送信用トリガー（postback 受信後にメッセージで session_id 付きURLを送る用。未設定なら従来どおりレスポンスHTMLのみ）
     LSTEP_BOOKING_LINK_POSTBACK_PATTERN: 'LSTEP_BOOKING_LINK_POSTBACK_PATTERN', // 予約URLを送る postback の条件。未設定または空＝すべての postback で送信。設定時は postback.data にこの文字列が含まれるときのみ送信（例: booking）
+    VERCEL_AG_LSTEP_WEBHOOK_URL: 'VERCEL_AG_LSTEP_WEBHOOK_URL', // career-agent-portal POST /api/webhooks/lstep（末尾スラッシュなし）
+    LSTEP_INTERNAL_WEBHOOK_SECRET: 'LSTEP_INTERNAL_WEBHOOK_SECRET', // Vercel と同一。X-Internal-Auth
     MEET_SA_CLIENT_EMAIL: 'MEET_SA_CLIENT_EMAIL',   // Google Meet API 用サービスアカウントの client_email（ドメイン全体の委任で主催者になりすます）
     MEET_SA_PRIVATE_KEY: 'MEET_SA_PRIVATE_KEY'      // 上記サービスアカウントの private_key（PEM。改行は \n のまままたは実際の改行で保存可）
   },
