@@ -87,3 +87,33 @@ function agPortalRelayMinimalOkHtml_() {
     '<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head><body>OK</body></html>'
   ).setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
+
+/**
+ * LW1 相当（TS-GAS-001）: 空 events で Vercel POST /api/webhooks/lstep に UrlFetchApp。
+ * スクリプトエディタから手動実行。Script Properties に VERCEL_AG_LSTEP_WEBHOOK_URL / LSTEP_INTERNAL_WEBHOOK_SECRET 必須。
+ * 参照: jukust_career-agent-portal docs/testing/ag-lstep-gas-vercel-runbook.md Step 3
+ */
+function runLw1EmptyEventsConnectivityTest() {
+  var props = PropertiesService.getScriptProperties();
+  var url = (props.getProperty(Config.PROPERTY_KEYS.VERCEL_AG_LSTEP_WEBHOOK_URL) || '').trim();
+  var secret = (props.getProperty(Config.PROPERTY_KEYS.LSTEP_INTERNAL_WEBHOOK_SECRET) || '').trim();
+  if (!url || !secret) {
+    throw new Error('Script Properties に VERCEL_AG_LSTEP_WEBHOOK_URL と LSTEP_INTERNAL_WEBHOOK_SECRET を設定してください。');
+  }
+  var payload = JSON.stringify({ events: [] });
+  var resp = UrlFetchApp.fetch(url, {
+    method: 'post',
+    contentType: 'application/json',
+    muteHttpExceptions: true,
+    payload: payload,
+    headers: { 'X-Internal-Auth': secret },
+    followRedirects: true,
+    validateHttpsCertificates: true,
+  });
+  var code = resp.getResponseCode();
+  var text = resp.getContentText() || '';
+  Logger.log('[AgPortalRelay] LW1 empty-events test status=' + code + ' body=' + text.substring(0, 500));
+  if (code !== 200) {
+    throw new Error('LW1 expected HTTP 200, got ' + code + ': ' + text.substring(0, 200));
+  }
+}
